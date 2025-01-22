@@ -1,0 +1,54 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum TokenPurchaseStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id              String    @id @default(cuid())
+  name            String?
+  email           String    @unique
+  password        String
+  emailVerified   DateTime?
+  role            UserRole  @default(USER)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  twoFactorEnabled Boolean  @default(false)
+  backupCodes     String[]  @default([])
+  walletAddress   String?   @unique
+  walletVerified  Boolean   @default(false)
+  tokenPurchases  TokenPurchase[]
+}
+
+model TokenPurchase {
+  id                   String             @id @default(cuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id])
+  tokenAmount          Float
+  solAmount           Float
+  usdAmount           Float
+  status              TokenPurchaseStatus @default(PENDING)
+  transactionSignature String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
+}

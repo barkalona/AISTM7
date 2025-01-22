@@ -1,0 +1,140 @@
+# Web Framework
+fastapi==0.104.1
+uvicorn==0.24.0
+python-multipart==0.0.6
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Data Processing & Analysis
+numpy==1.24.3
+pandas==2.1.1
+scipy==1.11.3
+scikit-learn==1.3.2
+
+# Deep Learning
+tensorflow==2.14.0
+keras==2.14.0
+
+# Technical Analysis
+ta-lib==0.4.28
+pandas-ta==0.3.14b
+
+# Database
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.12.1
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.1
+pytest-cov==4.1.0
+
+# API Client
+requests==2.31.0
+aiohttp==3.9.1
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3.post1
+pydantic==2.4.2
+pydantic[email]==2.4.2
+
+# Interactive Brokers API
+ibapi==9.81.1.post1
+
+# Monitoring & Logging
+prometheus-client==0.17.1
+python-json-logger==2.0.7
+
+# Cache
+redis==5.0.1
+aioredis==2.0.1
+
+# Security
+cryptography==41.0.5
+python-dotenv==1.0.0
+
+# Documentation
+mkdocs==1.5.3
+mkdocs-material==9.4.8
+
+# Development Tools
+black==23.10.1
+isort==5.12.0
+flake8==6.1.0
+mypy==1.6.1
+pylint==3.0.2
+
+# Jupyter (for analysis and model development)
+jupyter==1.0.0
+jupyterlab==4.0.8
+ipywidgets==8.1.1
+
+# Visualization
+matplotlib==3.8.1
+seaborn==0.13.0
+plotly==5.18.0
+
+# Performance Optimization
+numba==0.58.1
+dask==2023.10.1
+distributed==2023.10.1
+
+# Feature Engineering
+tsfresh==0.20.1
+featuretools==1.27.0
+
+# Time Series Analysis
+statsmodels==0.14.0
+prophet==1.1.4
+
+# Natural Language Processing
+nltk==3.8.1
+textblob==0.17.1
+transformers==4.35.0
+
+# Model Serialization
+joblib==1.3.2
+cloudpickle==3.0.0
+
+# Model Serving
+mlflow==2.8.0
+bentoml==1.1.8
+
+# Experiment Tracking
+wandb==0.15.12
+tensorboard==2.14.1
+
+# Hyperparameter Optimization
+optuna==3.4.0
+ray[tune]==2.7.1
+
+# Model Interpretability
+shap==0.43.0
+lime==0.2.0.1
+eli5==0.13.0
+
+# Data Validation
+great-expectations==0.17.19
+pandera==0.17.2
+
+# Deployment
+gunicorn==21.2.0
+supervisor==4.2.5
+
+# Async Support
+asyncio==3.4.3
+aiofiles==23.2.1
+
+# Caching & Performance
+cachetools==5.3.2
+lru-dict==1.2.0
+
+# Metrics Collection
+pyinstrument==4.6.0
+memory-profiler==0.61.0
+
+# Required for FastAPI
+starlette==0.27.0
+pydantic-settings==2.0.3
