@@ -15,14 +15,6 @@ const nextConfig = {
     NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
     NEXT_PUBLIC_SOLANA_NETWORK: process.env.NEXT_PUBLIC_SOLANA_NETWORK
   },
-  // Enable static exports for Netlify
-  output: 'export',
-  // Disable server-side features when exporting
-  experimental: {
-    appDir: true,
-    serverActions: true,
-    serverComponents: true
-  },
   // Configure redirects
   async redirects() {
     return [
@@ -70,3 +62,5 @@ const nextConfig = {
     return config;
   },
 }
+
+module.exports = nextConfig

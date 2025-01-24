@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useSession } from 'next-auth/react';
 import { usePortfolioWebSocket } from '@/hooks/usePortfolioWebSocket';
+import { useRiskAnalysis } from '@/hooks/useRiskAnalysis';
 import DashboardLayout from '@/components/DashboardLayout';
 import RiskChart from '@/components/RiskChart';
 import RecommendationPanel from '@/components/RecommendationPanel';
@@ -13,7 +14,18 @@ import { TokenGate } from '@/components/TokenGate';
 function PortfolioContent() {
   const { publicKey } = useWallet();
   const { data: session } = useSession();
-  const { positions, loading, error } = usePortfolioWebSocket();
+  const { positions, loading: positionsLoading, error: positionsError } = usePortfolioWebSocket();
+  const { 
+    monteCarloResults,
+    isLoading: riskLoading,
+    runMonteCarloSimulation
+  } = useRiskAnalysis();
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      runMonteCarloSimulation(10000, 252, 0.95);
+    }
+  }, [session?.user?.id, runMonteCarloSimulation]);
 
   const totalValue = useMemo(() => 
     positions.reduce((sum, pos) => sum + pos.value, 0),
@@ -35,7 +47,7 @@ function PortfolioContent() {
     );
   }
 
-  if (loading) {
+  if (positionsLoading || riskLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
@@ -43,10 +55,10 @@ function PortfolioContent() {
     );
   }
 
-  if (error) {
+  if (positionsError) {
     return (
       <div className="text-center py-12">
-        <div className="text-red-600 mb-4">{error}</div>
+        <div className="text-red-600 mb-4">{positionsError}</div>
         <button
           onClick={() => window.location.reload()}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -87,7 +99,13 @@ function PortfolioContent() {
           {/* Risk Charts */}
           <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4">Risk Analysis</h2>
-            <RiskChart accountId={session.user.id} />
+            {monteCarloResults && (
+              <RiskChart
+                simulationPaths={monteCarloResults.simulation_paths}
+                percentiles={monteCarloResults.percentiles}
+                timeHorizon={252}
+              />
+            )}
           </div>
 
           {/* AI Recommendations */}

@@ -1,16 +1,24 @@
-const mongoose = require('mongoose');
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  connectionString: 'postgresql://postgres.tytzkeufaizdlqqnsnem:Welcome2OQT1997@aws-0-eu-central-1.pooler.supabase.com:5432/postgres',
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 const connectDB = async () => {
   try {
-    await mongoose.connect('mongodb+srv://canon2:IOloman21@canon2.5wly2.mongodb.net/?retryWrites=true&w=majority&appName=Canon2', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log('MongoDB connected');
+    const client = await pool.connect();
+    console.log('Database connected');
+    client.release();
   } catch (error) {
-    console.error('MongoDB connection error:', error);
+    console.error('Database connection error:', error);
     process.exit(1);
   }
 };
 
-module.exports = connectDB;
+module.exports = {
+  connectDB,
+  pool
+};

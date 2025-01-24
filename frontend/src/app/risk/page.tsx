@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import DashboardLayout from '@/components/DashboardLayout';
-import RiskAnalysisPanel from '@/components/RiskAnalysisPanel';
+import { RiskAnalysisPanel } from '@/components/RiskAnalysisPanel';
 import CorrelationMatrix from '@/components/CorrelationMatrix';
 import { useRiskAnalysis } from '@/hooks/useRiskAnalysis';
 import { usePortfolioWebSocket } from '@/hooks/usePortfolioWebSocket';
+import Loader from '@/components/ui/Loader';
 
 type TabType = 'metrics' | 'correlation' | 'stress';
 
@@ -46,7 +47,12 @@ const DEFAULT_SCENARIOS = [
 export default function RiskPage() {
   const { data: session } = useSession();
   const { positions } = usePortfolioWebSocket();
-  const { runStressTest, stressTestResults, isLoading } = useRiskAnalysis();
+  const { 
+    runStressTest, 
+    stressTestResults, 
+    isLoading,
+    riskMetrics
+  } = useRiskAnalysis();
   const [activeTab, setActiveTab] = useState<TabType>('metrics');
   const [selectedScenario, setSelectedScenario] = useState<string>('');
   const [customScenario, setCustomScenario] = useState<Record<string, number>>({});
@@ -129,7 +135,20 @@ export default function RiskPage() {
         <div className="space-y-8">
           {activeTab === 'metrics' && <RiskAnalysisPanel />}
           
-          {activeTab === 'correlation' && <CorrelationMatrix />}
+          {activeTab === 'correlation' && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <h2 className="text-xl font-semibold mb-4">Asset Correlations</h2>
+              {isLoading ? (
+                <Loader />
+              ) : riskMetrics?.correlation_matrix ? (
+                <CorrelationMatrix data={riskMetrics.correlation_matrix} />
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  No correlation data available
+                </div>
+              )}
+            </div>
+          )}
           
           {activeTab === 'stress' && (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">

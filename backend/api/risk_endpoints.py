@@ -1,194 +1,218 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Dict, Any
+from fastapi import APIRouter, HTTPException, Query
+from typing import Dict, Any, List, Optional
 import pandas as pd
 from datetime import datetime, timedelta
-import numpy as np
-from services.riskAnalysis import RiskAnalysis
-from services.ibkrService import IBKRService
-from models.portfolio import PortfolioData
-from utils.auth import get_current_user
+from ..services.riskAnalysis import RiskAnalysis
+from ..services.ibkrService import IBKRService
+from ..utils.validation import validate_portfolio_data
 
 router = APIRouter()
-
-def get_historical_data(user_id: str, days: int = 252) -> pd.DataFrame:
-    """Fetch historical data for user's portfolio."""
-    try:
-        ibkr_service = IBKRService()
-        start_date = datetime.now() - timedelta(days=days)
-        
-        # Get current portfolio positions
-        positions = ibkr_service.get_portfolio_positions(user_id)
-        
-        # Fetch historical data for each position
-        historical_data = []
-        for position in positions:
-            prices = ibkr_service.get_historical_prices(
-                position['symbol'],
-                start_date,
-                datetime.now()
-            )
-            for date, price in prices.items():
-                historical_data.append({
-                    'date': date,
-                    'symbol': position['symbol'],
-                    'price': price,
-                    'quantity': position['quantity']
-                })
-        
-        return pd.DataFrame(historical_data)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching historical data: {str(e)}")
+ibkr_service = IBKRService()
 
 @router.get("/portfolio/risk-metrics")
 async def get_risk_metrics(
-    user = Depends(get_current_user),
-    time_horizon: int = 252,
-    confidence_level: float = 0.95
+    account_id: str,
+    time_horizon: int = Query(default=252, ge=1, le=1000),
+    confidence_level: float = Query(default=0.95, ge=0.8, le=0.99),
+    use_t_distribution: bool = Query(default=True),
+    num_simulations: int = Query(default=10000, ge=1000, le=100000)
 ) -> Dict[str, Any]:
     """
-    Calculate comprehensive risk metrics for the user's portfolio.
+    Calculate comprehensive risk metrics for the portfolio.
     
     Args:
-        time_horizon: Time horizon in days for calculations
+        account_id: IBKR account ID
+        time_horizon: Time horizon in days for simulations
         confidence_level: Confidence level for VaR calculations
+        use_t_distribution: Whether to use Student's t-distribution for fat tails
+        num_simulations: Number of Monte Carlo simulations
     """
     try:
-        # Get historical data
-        historical_data = get_historical_data(user.id, time_horizon)
+        # Fetch portfolio data from IBKR
+        portfolio_data = await ibkr_service.get_portfolio_data(account_id)
+        historical_data = await ibkr_service.get_historical_data(
+            symbols=portfolio_data['symbols'],
+            lookback_days=max(252, time_horizon)  # At least 1 year of data
+        )
+        
+        # Validate data
+        validate_portfolio_data(portfolio_data, historical_data)
         
         # Initialize risk analysis
         risk_analyzer = RiskAnalysis(historical_data)
         
-        # Calculate all risk metrics
-        metrics = risk_analyzer.calculate_risk_metrics()
+        # Calculate comprehensive risk metrics
+        risk_metrics = risk_analyzer.calculate_risk_metrics()
         
-        return {
-            "status": "success",
-            "data": metrics,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/portfolio/monte-carlo")
-async def run_monte_carlo(
-    user = Depends(get_current_user),
-    num_simulations: int = 10000,
-    time_horizon: int = 252,
-    confidence_level: float = 0.95
-) -> Dict[str, Any]:
-    """
-    Run Monte Carlo simulation for portfolio value prediction.
-    
-    Args:
-        num_simulations: Number of simulation paths
-        time_horizon: Time horizon in days
-        confidence_level: Confidence level for VaR calculation
-    """
-    try:
-        # Get historical data
-        historical_data = get_historical_data(user.id)
-        
-        # Initialize risk analysis
-        risk_analyzer = RiskAnalysis(historical_data)
-        
-        # Run simulation
+        # Run Monte Carlo simulation with multiple methods
         simulation_results = risk_analyzer.monte_carlo_simulation(
             num_simulations=num_simulations,
             time_horizon=time_horizon,
-            confidence_level=confidence_level
+            confidence_level=confidence_level,
+            use_t_distribution=use_t_distribution
         )
         
+        # Combine results
         return {
-            "status": "success",
-            "data": simulation_results,
-            "timestamp": datetime.now().isoformat()
+            "portfolio_metrics": {
+                "current_value": risk_analyzer.portfolio_value,
+                "daily_metrics": risk_metrics,
+                "monte_carlo_results": simulation_results,
+                "var_analysis": risk_analyzer.calculate_var(
+                    confidence_level=confidence_level,
+                    time_horizon=time_horizon,
+                    method='all'
+                )
+            },
+            "metadata": {
+                "calculation_time": datetime.now().isoformat(),
+                "parameters": {
+                    "time_horizon": time_horizon,
+                    "confidence_level": confidence_level,
+                    "num_simulations": num_simulations,
+                    "use_t_distribution": use_t_distribution
+                }
+            }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/portfolio/stress-test")
+@router.get("/portfolio/stress-test")
 async def run_stress_test(
-    scenarios: List[Dict[str, float]],
-    user = Depends(get_current_user)
+    account_id: str,
+    scenarios: Optional[List[Dict[str, float]]] = None
 ) -> Dict[str, Any]:
     """
-    Run stress tests on the portfolio using provided scenarios.
+    Run stress tests on the portfolio using predefined or custom scenarios.
     
     Args:
-        scenarios: List of dictionaries with percentage changes for each asset
+        account_id: IBKR account ID
+        scenarios: Optional list of custom stress scenarios
     """
     try:
-        # Get historical data
-        historical_data = get_historical_data(user.id)
+        # Fetch portfolio data
+        portfolio_data = await ibkr_service.get_portfolio_data(account_id)
+        historical_data = await ibkr_service.get_historical_data(
+            symbols=portfolio_data['symbols'],
+            lookback_days=252
+        )
         
         # Initialize risk analysis
         risk_analyzer = RiskAnalysis(historical_data)
         
-        # Run stress tests
-        stress_test_results = risk_analyzer.stress_test(scenarios)
+        # Run Monte Carlo with stress scenarios
+        stress_results = risk_analyzer.monte_carlo_simulation(
+            num_simulations=5000,  # Fewer simulations for stress testing
+            time_horizon=252,
+            confidence_level=0.99,
+            use_t_distribution=True
+        )
+        
+        # Extract stress test results
+        stress_scenarios = {
+            k: v for k, v in stress_results.items() 
+            if k.startswith('stress_')
+        }
+        
+        # Add custom scenarios if provided
+        if scenarios:
+            custom_results = risk_analyzer.stress_test(scenarios)
+            stress_scenarios.update({
+                f'custom_scenario_{i+1}': result 
+                for i, result in enumerate(custom_results.values())
+            })
         
         return {
-            "status": "success",
-            "data": stress_test_results,
-            "timestamp": datetime.now().isoformat()
+            "stress_test_results": stress_scenarios,
+            "metadata": {
+                "calculation_time": datetime.now().isoformat(),
+                "num_scenarios": len(stress_scenarios)
+            }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/portfolio/var")
-async def calculate_var(
-    user = Depends(get_current_user),
-    confidence_level: float = 0.95,
-    time_horizon: int = 1
+@router.get("/portfolio/var-analysis")
+async def get_var_analysis(
+    account_id: str,
+    confidence_level: float = Query(default=0.95, ge=0.8, le=0.99),
+    time_horizon: int = Query(default=1, ge=1, le=252),
+    method: str = Query(default='all', regex='^(historical|parametric|monte_carlo|all)$')
 ) -> Dict[str, Any]:
     """
-    Calculate Value at Risk for the portfolio.
+    Calculate Value at Risk using multiple methods.
     
     Args:
+        account_id: IBKR account ID
         confidence_level: Confidence level for VaR calculation
         time_horizon: Time horizon in days
+        method: VaR calculation method
     """
     try:
-        # Get historical data
-        historical_data = get_historical_data(user.id)
+        # Fetch portfolio data
+        portfolio_data = await ibkr_service.get_portfolio_data(account_id)
+        historical_data = await ibkr_service.get_historical_data(
+            symbols=portfolio_data['symbols'],
+            lookback_days=252
+        )
         
         # Initialize risk analysis
         risk_analyzer = RiskAnalysis(historical_data)
         
-        # Calculate VaR
+        # Calculate VaR using specified method(s)
         var_results = risk_analyzer.calculate_var(
             confidence_level=confidence_level,
-            time_horizon=time_horizon
+            time_horizon=time_horizon,
+            method=method
         )
         
         return {
-            "status": "success",
-            "data": var_results,
-            "timestamp": datetime.now().isoformat()
+            "var_results": var_results,
+            "metadata": {
+                "calculation_time": datetime.now().isoformat(),
+                "parameters": {
+                    "confidence_level": confidence_level,
+                    "time_horizon": time_horizon,
+                    "method": method
+                }
+            }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/portfolio/correlation")
-async def get_correlation_matrix(
-    user = Depends(get_current_user)
+@router.get("/portfolio/tail-risk")
+async def get_tail_risk_metrics(
+    account_id: str,
+    lookback_days: int = Query(default=252, ge=30, le=1000)
 ) -> Dict[str, Any]:
-    """Get correlation matrix for portfolio assets."""
+    """
+    Calculate tail risk metrics for the portfolio.
+    
+    Args:
+        account_id: IBKR account ID
+        lookback_days: Historical lookback period in days
+    """
     try:
-        # Get historical data
-        historical_data = get_historical_data(user.id)
+        # Fetch portfolio data
+        portfolio_data = await ibkr_service.get_portfolio_data(account_id)
+        historical_data = await ibkr_service.get_historical_data(
+            symbols=portfolio_data['symbols'],
+            lookback_days=lookback_days
+        )
         
         # Initialize risk analysis
         risk_analyzer = RiskAnalysis(historical_data)
         
-        # Get correlation matrix from risk metrics
-        metrics = risk_analyzer.calculate_risk_metrics()
+        # Calculate tail risk metrics
+        risk_metrics = risk_analyzer.calculate_risk_metrics()
+        tail_metrics = risk_metrics.get('tail_risk_metrics', {})
         
         return {
-            "status": "success",
-            "data": metrics['correlation_matrix'],
-            "timestamp": datetime.now().isoformat()
+            "tail_risk_metrics": tail_metrics,
+            "metadata": {
+                "calculation_time": datetime.now().isoformat(),
+                "lookback_period": lookback_days
+            }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

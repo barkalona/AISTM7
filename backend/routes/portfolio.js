@@ -1,8 +1,11 @@
 const express = require('express');
+const expressWs = require('express-ws');
 const router = express.Router();
 const ibkrService = require('../services/ibkrService');
 const authMiddleware = require('../middleware/auth');
-const WebSocket = require('ws');
+
+// Enable WebSocket support for this router
+expressWs(router);
 
 // Get portfolio data
 router.get('/', authMiddleware, async (req, res) => {
@@ -81,39 +84,50 @@ router.post('/unsubscribe', authMiddleware, async (req, res) => {
 });
 
 // WebSocket endpoint for real-time updates
-router.ws('/live', authMiddleware, (ws, req) => {
-  const userId = req.user.id;
-  
-  // Store the WebSocket connection
-  ibkrService.addWebSocket(userId, ws);
-
-  ws.on('message', async (msg) => {
-    try {
-      const data = JSON.parse(msg);
-      
-      switch (data.type) {
-        case 'subscribe':
-          if (Array.isArray(data.contractIds)) {
-            await ibkrService.subscribeMarketData(userId, data.contractIds);
-          }
-          break;
-          
-        case 'unsubscribe':
-          if (Array.isArray(data.contractIds)) {
-            await ibkrService.unsubscribeMarketData(userId, data.contractIds);
-          }
-          break;
-          
-        default:
-          ws.send(JSON.stringify({ error: 'Unknown message type' }));
-      }
-    } catch (error) {
-      ws.send(JSON.stringify({ error: error.message }));
+router.ws('/live', (ws, req) => {
+  // Authenticate the WebSocket connection
+  authMiddleware(req, {}, (err) => {
+    if (err) {
+      ws.close();
+      return;
     }
-  });
 
-  ws.on('close', () => {
-    ibkrService.removeWebSocket(userId);
+    const userId = req.user.id;
+    
+    // Store the WebSocket connection
+    ibkrService.addWebSocket(userId, ws);
+
+    ws.on('message', async (msg) => {
+      try {
+        const data = JSON.parse(msg);
+        
+        switch (data.type) {
+          case 'subscribe':
+            if (Array.isArray(data.contractIds)) {
+              await ibkrService.subscribeMarketData(userId, data.contractIds);
+            }
+            break;
+            
+          case 'unsubscribe':
+            if (Array.isArray(data.contractIds)) {
+              await ibkrService.unsubscribeMarketData(userId, data.contractIds);
+            }
+            break;
+            
+          default:
+            ws.send(JSON.stringify({ error: 'Unknown message type' }));
+        }
+      } catch (error) {
+        ws.send(JSON.stringify({ error: error.message }));
+      }
+    });
+
+    ws.on('close', () => {
+      ibkrService.removeWebSocket(userId);
+    });
+
+    // Send initial connection success message
+    ws.send(JSON.stringify({ type: 'connected', userId }));
   });
 });
 

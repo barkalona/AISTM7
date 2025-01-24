@@ -1,162 +1,128 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useSession } from 'next-auth/react';
-import { useNotifications } from '@/providers/NotificationProvider';
-import { getTokenBalance, watchTokenBalance, TokenBalance } from '@/services/solana';
 
-interface TokenAccess {
-  hasAccess: boolean;
-  isLoading: boolean;
-  error: string | null;
-  balance: number;
-  requiredBalance: number;
-  price: number;
+interface BalanceResult {
+  hasRequiredBalance: boolean;
+  currentBalance: number;
+  requiredAmount: number;
+  shortfall: number;
+}
+
+interface RequirementResult {
+  requiredAmount: number;
+  targetUsdValue: number;
+  lastUpdate: string;
 }
 
 interface TokenPrice {
   price: number;
-  minimumTokens: number;
-  timestamp: number;
+  lastUpdate: string;
 }
 
 export function useTokenAccess() {
-  const { publicKey } = useWallet();
-  const { data: session } = useSession();
-  const { addNotification } = useNotifications();
-  const [tokenAccess, setTokenAccess] = useState<TokenAccess>({
-    hasAccess: false,
-    isLoading: true,
-    error: null,
-    balance: 0,
-    requiredBalance: 700000, // Default value
-    price: 0
-  });
+  const { connected, publicKey } = useWallet();
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [price, setPrice] = useState<number>(0);
+  const [balance, setBalance] = useState<number>(0);
+  const [requiredBalance, setRequiredBalance] = useState<number>(0);
+  const [hasAccess, setHasAccess] = useState(false);
 
-  const checkAccess = useCallback(async () => {
-    if (!publicKey || !session) {
-      setTokenAccess(prev => ({
-        ...prev,
-        hasAccess: false,
-        isLoading: false,
-        error: 'Wallet not connected'
-      }));
-      return;
-    }
-
+  const verifyBalance = useCallback(async (walletAddress: string): Promise<BalanceResult> => {
     try {
-      // Fetch token price and balance in parallel
-      const [priceResponse, balance] = await Promise.all([
-        fetch('/api/token/price'),
-        getTokenBalance(publicKey.toString())
-      ]);
-
-      if (!priceResponse.ok) {
-        throw new Error('Failed to fetch token price');
+      const response = await fetch(`/api/token/balance/${walletAddress}`);
+      if (!response.ok) {
+        throw new Error('Failed to verify token balance');
       }
-
-      const priceData: TokenPrice = await priceResponse.json();
-
-      setTokenAccess({
-        hasAccess: balance.amount >= priceData.minimumTokens,
-        isLoading: false,
-        error: null,
-        balance: balance.amount,
-        requiredBalance: priceData.minimumTokens,
-        price: priceData.price
-      });
-
-      // Show notification if balance is insufficient
-      if (!balance.meetsMinimum) {
-        addNotification({
-          type: 'warning',
-          title: 'Insufficient Token Balance',
-          message: `You need ${priceData.minimumTokens.toLocaleString()} AISTM7 tokens to access the platform.`,
-          userId: 'system'
-        });
-      }
-    } catch (error) {
-      console.error('Error checking token access:', error);
-      setTokenAccess(prev => ({
-        ...prev,
-        hasAccess: false,
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to check token access'
-      }));
+      const result = await response.json();
+      setBalance(result.currentBalance);
+      setRequiredBalance(result.requiredAmount);
+      setHasAccess(result.hasRequiredBalance);
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to verify token balance';
+      setError(message);
+      throw err;
     }
-  }, [publicKey, session, addNotification]);
+  }, []);
 
-  // Initial check
-  useEffect(() => {
-    checkAccess();
-  }, [checkAccess]);
-
-  // Set up balance monitoring
-  useEffect(() => {
-    if (!publicKey) return;
-
-    let cleanupFn: (() => void) | undefined;
-
-    const setupWatcher = async () => {
-      try {
-        const handleBalanceChange = async (balance: TokenBalance) => {
-          try {
-            const priceResponse = await fetch('/api/token/price');
-            if (!priceResponse.ok) {
-              throw new Error('Failed to fetch token price');
-            }
-
-            const priceData: TokenPrice = await priceResponse.json();
-
-            setTokenAccess(prev => ({
-              ...prev,
-              hasAccess: balance.amount >= priceData.minimumTokens,
-              balance: balance.amount,
-              requiredBalance: priceData.minimumTokens,
-              price: priceData.price
-            }));
-
-            // Notify if access status changes
-            if (balance.amount < priceData.minimumTokens) {
-              addNotification({
-                type: 'warning',
-                title: 'Access Lost',
-                message: 'Your token balance has fallen below the required minimum.',
-                userId: 'system'
-              });
-            }
-          } catch (error) {
-            console.error('Error updating token access:', error);
-          }
-        };
-
-        cleanupFn = await watchTokenBalance(publicKey.toString(), handleBalanceChange);
-      } catch (error) {
-        console.error('Error setting up balance watcher:', error);
+  const getCurrentRequirement = useCallback(async (): Promise<RequirementResult> => {
+    try {
+      const response = await fetch('/api/token/requirement');
+      if (!response.ok) {
+        throw new Error('Failed to get current requirement');
       }
-    };
+      const result = await response.json();
+      setRequiredBalance(result.requiredAmount);
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to get current requirement';
+      setError(message);
+      throw err;
+    }
+  }, []);
 
-    setupWatcher();
-
-    return () => {
-      if (cleanupFn) {
-        cleanupFn();
+  const getTokenPrice = useCallback(async (): Promise<TokenPrice> => {
+    try {
+      const response = await fetch('/api/token/price');
+      if (!response.ok) {
+        throw new Error('Failed to get token price');
       }
-    };
-  }, [publicKey, addNotification]);
+      const result = await response.json();
+      setPrice(result.price);
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to get token price';
+      setError(message);
+      throw err;
+    }
+  }, []);
 
-  const formatUsdValue = useCallback((tokens: number) => {
-    const usdValue = tokens * tokenAccess.price;
+  const formatUsdValue = useCallback((amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
-    }).format(usdValue);
-  }, [tokenAccess.price]);
+      currency: 'USD',
+    }).format(amount);
+  }, []);
+
+  useEffect(() => {
+    const initializeData = async () => {
+      if (!connected || !publicKey) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        await Promise.all([
+          verifyBalance(publicKey.toString()),
+          getCurrentRequirement(),
+          getTokenPrice(),
+        ]);
+      } catch (err) {
+        console.error('Error initializing token access data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeData();
+
+    // Poll for updates every minute
+    const interval = setInterval(initializeData, 60000);
+    return () => clearInterval(interval);
+  }, [connected, publicKey, verifyBalance, getCurrentRequirement, getTokenPrice]);
 
   return {
-    ...tokenAccess,
-    checkAccess,
+    verifyBalance,
+    getCurrentRequirement,
+    getTokenPrice,
     formatUsdValue,
-    currentValue: formatUsdValue(tokenAccess.balance),
-    requiredValue: formatUsdValue(tokenAccess.requiredBalance)
+    error,
+    isLoading,
+    price,
+    balance,
+    requiredBalance,
+    hasAccess,
   };
 }

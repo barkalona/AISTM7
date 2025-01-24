@@ -52,6 +52,7 @@ export const authOptions: NextAuthOptions = {
             password: true,
             emailVerified: true,
             role: true,
+            twoFactorEnabled: true,
           },
         });
 
@@ -74,6 +75,9 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role as UserRole,
+          isAdmin: user.role === 'ADMIN',
+          emailVerified: user.emailVerified,
+          twoFactorEnabled: user.twoFactorEnabled,
         };
       },
     }),
@@ -82,14 +86,16 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role as UserRole;
+        token.role = user.role;
+        token.isAdmin = user.role === 'ADMIN';
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id;
-        session.user.role = token.role;
+        session.user.id = token.id as string;
+        session.user.role = token.role as UserRole;
+        session.user.isAdmin = token.role === 'ADMIN';
       }
       return session;
     },

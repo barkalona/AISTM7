@@ -6,19 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-enum UserRole {
-  USER
-  ADMIN
-}
-
-enum TokenPurchaseStatus {
-  PENDING
-  COMPLETED
-  FAILED
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -27,27 +16,27 @@ model User {
   email           String    @unique
   password        String
   emailVerified   DateTime?
-  role            UserRole  @default(USER)
+  role            String    @default("USER") // Using string instead of enum
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   twoFactorEnabled Boolean  @default(false)
-  backupCodes     String[]  @default([])
+  backupCodes     String    @default("[]") // Store as JSON string
   walletAddress   String?   @unique
   walletVerified  Boolean   @default(false)
   tokenPurchases  TokenPurchase[]
 }
 
 model TokenPurchase {
-  id                   String             @id @default(cuid())
+  id                   String    @id @default(cuid())
   userId               String
-  user                 User               @relation(fields: [userId], references: [id])
+  user                 User      @relation(fields: [userId], references: [id])
   tokenAmount          Float
   solAmount           Float
   usdAmount           Float
-  status              TokenPurchaseStatus @default(PENDING)
+  status              String    @default("PENDING") // Using string instead of enum
   transactionSignature String?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([userId])
   @@index([createdAt])

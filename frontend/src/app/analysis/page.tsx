@@ -4,14 +4,17 @@ import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import DashboardLayout from '@/components/DashboardLayout';
 import AIAnalysisPanel from '@/components/AIAnalysisPanel';
-import RiskAnalysisPanel from '@/components/RiskAnalysisPanel';
+import { RiskAnalysisPanel } from '@/components/RiskAnalysisPanel';
 import CorrelationMatrix from '@/components/CorrelationMatrix';
+import { useRiskAnalysis } from '@/hooks/useRiskAnalysis';
+import Loader from '@/components/ui/Loader';
 
 type AnalysisTab = 'ai' | 'risk' | 'correlation';
 
 export default function AnalysisPage() {
   const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState<AnalysisTab>('ai');
+  const { riskMetrics, isLoading } = useRiskAnalysis();
 
   if (!session) {
     return (
@@ -109,7 +112,15 @@ export default function AnalysisPage() {
                     helping identify diversification opportunities.
                   </p>
                 </div>
-                <CorrelationMatrix />
+                {isLoading ? (
+                  <Loader />
+                ) : riskMetrics?.correlation_matrix ? (
+                  <CorrelationMatrix data={riskMetrics.correlation_matrix} />
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    No correlation data available
+                  </div>
+                )}
               </div>
             </div>
           )}

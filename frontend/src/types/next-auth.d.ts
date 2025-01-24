@@ -1,5 +1,6 @@
 import 'next-auth';
-import { UserRole } from '@prisma/client';
+
+export type UserRole = 'USER' | 'ADMIN';
 
 declare module 'next-auth' {
   interface User {

@@ -1,5 +1,9 @@
+'use client';
+
 import React, { createContext, useState, useContext } from 'react';
 import { Notification } from '../types/alerts';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -46,6 +50,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   return (
     <NotificationContext.Provider value={value}>
       {children}
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
     </NotificationContext.Provider>
   );
 };

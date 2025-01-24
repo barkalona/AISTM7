@@ -1,201 +1,141 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { useRiskAnalysis } from '@/hooks/useRiskAnalysis';
-import * as d3 from 'd3';
+import { useMemo } from 'react';
+import {
+  Chart as ChartJS,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Legend,
+  ChartOptions,
+  ScatterDataPoint,
+  ChartData
+} from 'chart.js';
+import { Scatter } from 'react-chartjs-2';
 
-interface CorrelationData {
-  source: string;
-  target: string;
-  correlation: number;
+ChartJS.register(
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Legend
+);
+
+interface CorrelationMatrixProps {
+  data: Record<string, Record<string, number>>;
 }
 
-interface LegendStop {
-  offset: string;
-  color: string;
-}
+const CorrelationMatrix: React.FC<CorrelationMatrixProps> = ({ data }) => {
+  const { labels, correlations, chartData } = useMemo(() => {
+    const labels = Object.keys(data);
+    const correlations = labels.map(asset1 => 
+      labels.map(asset2 => data[asset1][asset2] || 0)
+    );
 
-interface CorrelationMatrix {
-  [key: string]: {
-    [key: string]: number;
-  };
-}
-
-export default function CorrelationMatrix() {
-  const { getCorrelationMatrix, isLoading } = useRiskAnalysis();
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  useEffect(() => {
-    const fetchAndRenderMatrix = async () => {
-      const correlationMatrix = await getCorrelationMatrix();
-      if (!correlationMatrix || !svgRef.current) return;
-
-      // Convert matrix to array of correlations
-      const data: CorrelationData[] = [];
-      const symbols = Object.keys(correlationMatrix);
-      symbols.forEach((source: string) => {
-        symbols.forEach((target: string) => {
-          data.push({
-            source,
-            target,
-            correlation: correlationMatrix[source][target]
-          });
+    // Create scatter plot data points
+    const points: Array<ScatterDataPoint & { correlation: number }> = [];
+    labels.forEach((asset1, i) => {
+      labels.forEach((asset2, j) => {
+        points.push({
+          x: i,
+          y: j,
+          correlation: correlations[i][j]
         });
       });
+    });
 
-      // Clear previous visualization
-      d3.select(svgRef.current).selectAll('*').remove();
-
-      // Set up dimensions
-      const margin = { top: 50, right: 50, bottom: 50, left: 50 };
-      const width = 600;
-      const height = 600;
-      const cellSize = Math.min(
-        (width - margin.left - margin.right) / symbols.length,
-        (height - margin.top - margin.bottom) / symbols.length
-      );
-
-      // Create color scale
-      const colorScale = d3.scaleLinear<string>()
-        .domain([-1, 0, 1])
-        .range(['#ef4444', '#ffffff', '#22c55e']);
-
-      // Create SVG
-      const svg = d3.select(svgRef.current)
-        .attr('width', width)
-        .attr('height', height)
-        .append('g')
-        .attr('transform', `translate(${margin.left},${margin.top})`);
-
-      // Add x-axis labels
-      svg.selectAll('.x-label')
-        .data(symbols)
-        .enter()
-        .append('text')
-        .attr('class', 'x-label')
-        .attr('x', (d: string, i: number) => i * cellSize + cellSize / 2)
-        .attr('y', -10)
-        .style('text-anchor', 'middle')
-        .style('font-size', '12px')
-        .text((d: string) => d);
-
-      // Add y-axis labels
-      svg.selectAll('.y-label')
-        .data(symbols)
-        .enter()
-        .append('text')
-        .attr('class', 'y-label')
-        .attr('x', -10)
-        .attr('y', (d: string, i: number) => i * cellSize + cellSize / 2)
-        .style('text-anchor', 'end')
-        .style('font-size', '12px')
-        .style('alignment-baseline', 'middle')
-        .text((d: string) => d);
-
-      // Add cells
-      const cells = svg.selectAll('.cell')
-        .data(data)
-        .enter()
-        .append('g')
-        .attr('class', 'cell')
-        .attr('transform', (d: CorrelationData) => {
-          const x = symbols.indexOf(d.target) * cellSize;
-          const y = symbols.indexOf(d.source) * cellSize;
-          return `translate(${x},${y})`;
-        });
-
-      // Add rectangles for each cell
-      cells.append('rect')
-        .attr('width', cellSize)
-        .attr('height', cellSize)
-        .style('fill', (d: CorrelationData) => colorScale(d.correlation))
-        .style('stroke', '#e5e7eb')
-        .style('stroke-width', 1);
-
-      // Add correlation values
-      cells.append('text')
-        .attr('x', cellSize / 2)
-        .attr('y', cellSize / 2)
-        .style('text-anchor', 'middle')
-        .style('alignment-baseline', 'middle')
-        .style('font-size', '10px')
-        .style('fill', (d: CorrelationData) => Math.abs(d.correlation) > 0.5 ? '#ffffff' : '#000000')
-        .text((d: CorrelationData) => d.correlation.toFixed(2));
-
-      // Add legend
-      const legendWidth = 200;
-      const legendHeight = 20;
-      const legend = svg.append('g')
-        .attr('transform', `translate(${(width - margin.left - margin.right - legendWidth) / 2},${height - margin.bottom})`);
-
-      const legendScale = d3.scaleLinear()
-        .domain([-1, 1])
-        .range([0, legendWidth]);
-
-      const legendAxis = d3.axisBottom(legendScale)
-        .ticks(5)
-        .tickFormat(d => d?.toString() || '');
-
-      const legendGradient = legend.append('defs')
-        .append('linearGradient')
-        .attr('id', 'correlation-gradient')
-        .attr('x1', '0%')
-        .attr('x2', '100%')
-        .attr('y1', '0%')
-        .attr('y2', '0%');
-
-      const legendStops: LegendStop[] = [
-        { offset: '0%', color: '#ef4444' },
-        { offset: '50%', color: '#ffffff' },
-        { offset: '100%', color: '#22c55e' }
-      ];
-
-      legendGradient.selectAll('stop')
-        .data(legendStops)
-        .enter()
-        .append('stop')
-        .attr('offset', (d: LegendStop) => d.offset)
-        .attr('stop-color', (d: LegendStop) => d.color);
-
-      legend.append('rect')
-        .attr('width', legendWidth)
-        .attr('height', legendHeight)
-        .style('fill', 'url(#correlation-gradient)');
-
-      legend.append('g')
-        .attr('transform', `translate(0,${legendHeight})`)
-        .call(legendAxis);
-
-      legend.append('text')
-        .attr('x', legendWidth / 2)
-        .attr('y', -5)
-        .style('text-anchor', 'middle')
-        .style('font-size', '12px')
-        .text('Correlation');
+    const chartData: ChartData<'scatter'> = {
+      datasets: [{
+        label: 'Correlation',
+        data: points.map(point => ({
+          x: point.x,
+          y: point.y,
+          r: Math.abs(point.correlation) * 20 // Size based on correlation strength
+        })),
+        backgroundColor: points.map(point => 
+          point.correlation > 0 
+            ? `rgba(0, 128, 0, ${Math.abs(point.correlation)})`  // Green for positive
+            : `rgba(255, 0, 0, ${Math.abs(point.correlation)})` // Red for negative
+        ),
+        pointStyle: 'circle',
+      }]
     };
 
-    fetchAndRenderMatrix();
-  }, [getCorrelationMatrix]);
+    return { labels, correlations, chartData };
+  }, [data]);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-[600px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  const options: ChartOptions<'scatter'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      x: {
+        type: 'linear',
+        position: 'bottom',
+        min: -0.5,
+        max: labels.length - 0.5,
+        ticks: {
+          callback: function(value) {
+            return labels[Math.round(Number(value))] || '';
+          }
+        },
+        grid: {
+          display: false
+        }
+      },
+      y: {
+        type: 'linear',
+        min: -0.5,
+        max: labels.length - 0.5,
+        ticks: {
+          callback: function(value) {
+            return labels[Math.round(Number(value))] || '';
+          }
+        },
+        grid: {
+          display: false
+        }
+      }
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const point = context.raw as ScatterDataPoint & { r: number };
+            const asset1 = labels[Math.round(point.x)];
+            const asset2 = labels[Math.round(point.y)];
+            const correlation = correlations[Math.round(point.x)][Math.round(point.y)];
+            return `${asset1} vs ${asset2}: ${correlation.toFixed(2)}`;
+          }
+        }
+      },
+      legend: {
+        display: false
+      },
+      title: {
+        display: true,
+        text: 'Asset Correlation Matrix'
+      }
+    }
+  };
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-      <h3 className="text-lg font-medium mb-4">Asset Correlation Matrix</h3>
-      <div className="flex justify-center">
-        <svg ref={svgRef} className="max-w-full" />
+    <div className="w-full h-[500px] p-4">
+      <div className="h-full">
+        <Scatter data={chartData} options={options} />
       </div>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
-        This matrix shows the correlation between different assets in your portfolio.
-        Values range from -1 (perfect negative correlation) to 1 (perfect positive correlation).
-        A value of 0 indicates no correlation.
-      </p>
+      <div className="mt-4 flex justify-center items-center space-x-6 text-sm">
+        <div className="flex items-center">
+          <div className="w-4 h-4 bg-green-500 rounded-full mr-2 opacity-70"></div>
+          <span>Positive Correlation</span>
+        </div>
+        <div className="flex items-center">
+          <div className="w-4 h-4 bg-red-500 rounded-full mr-2 opacity-70"></div>
+          <span>Negative Correlation</span>
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+export default CorrelationMatrix;

@@ -1,318 +1,184 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
-  BarElement,
   Title,
   Tooltip,
   Legend,
-  RadialLinearScale,
-  ArcElement,
+  ChartOptions
 } from 'chart.js';
-import { Line, Bar, Radar } from 'react-chartjs-2';
-import { useRiskWebSocket } from '@/hooks/useRiskWebSocket';
+import { Line } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
-  BarElement,
-  RadialLinearScale,
-  ArcElement,
   Title,
   Tooltip,
   Legend
 );
 
 interface RiskChartProps {
-  accountId: string;
+  simulationPaths: number[][];
+  percentiles: {
+    '5th': number;
+    '25th': number;
+    '50th': number;
+    '75th': number;
+    '95th': number;
+  };
+  timeHorizon: number;
 }
 
-export default function RiskChart({ accountId }: RiskChartProps) {
-  const { metrics, loading, error, runMonteCarloSimulation } = useRiskWebSocket(accountId);
-  const [monteCarloData, setMonteCarloData] = useState<any>(null);
+const RiskChart: React.FC<RiskChartProps> = ({
+  simulationPaths,
+  percentiles,
+  timeHorizon
+}) => {
+  const timeLabels = useMemo(() => {
+    const labels = [];
+    const interval = timeHorizon / 12; // Monthly intervals
+    for (let i = 0; i <= timeHorizon; i += interval) {
+      labels.push(`Month ${Math.round(i / interval)}`);
+    }
+    return labels;
+  }, [timeHorizon]);
 
-  useEffect(() => {
-    // Run Monte Carlo simulation when component mounts
-    const runSimulation = async () => {
-      try {
-        const data = await runMonteCarloSimulation(1000, 252);
-        setMonteCarloData(data);
-      } catch (error) {
-        console.error('Failed to run Monte Carlo simulation:', error);
-      }
-    };
-    runSimulation();
-  }, [runMonteCarloSimulation]);
+  // Calculate mean path and confidence intervals
+  const chartData = useMemo(() => {
+    if (!simulationPaths || simulationPaths.length === 0) return null;
 
-  const riskBreakdownData = useMemo(() => ({
-    labels: ['Systematic Risk', 'Unsystematic Risk'],
-    datasets: [
-      {
-        data: metrics ? [
-          metrics.riskBreakdown.systematicRisk,
-          metrics.riskBreakdown.unsystematicRisk
-        ] : [],
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.8)',
-          'rgba(54, 162, 235, 0.8)'
-        ],
-        borderColor: [
-          'rgba(255, 99, 132, 1)',
-          'rgba(54, 162, 235, 1)'
-        ],
-        borderWidth: 1,
-      },
-    ],
-  }), [metrics]);
+    const numPoints = simulationPaths[0].length;
+    const meanPath = new Array(numPoints).fill(0);
+    const upperBound = new Array(numPoints).fill(0);
+    const lowerBound = new Array(numPoints).fill(0);
 
-  const betaData = useMemo(() => ({
-    labels: metrics?.betaMetrics.assetBetas.map(b => b.symbol) || [],
-    datasets: [
-      {
-        label: 'Asset Betas',
-        data: metrics?.betaMetrics.assetBetas.map(b => b.beta) || [],
-        backgroundColor: 'rgba(75, 192, 192, 0.8)',
-        borderColor: 'rgba(75, 192, 192, 1)',
-        borderWidth: 1,
-      },
-    ],
-  }), [metrics]);
-
-  const correlationData = useMemo(() => {
-    if (!metrics?.assetCorrelations) return null;
-
-    const uniqueAssets = new Set<string>();
-    metrics.assetCorrelations.forEach(corr => {
-      uniqueAssets.add(corr.asset1);
-      uniqueAssets.add(corr.asset2);
-    });
-
-    const labels = Array.from(uniqueAssets);
-    const correlationMatrix = Array(labels.length).fill(0).map(() => Array(labels.length).fill(1));
-
-    metrics.assetCorrelations.forEach(corr => {
-      const i = labels.indexOf(corr.asset1);
-      const j = labels.indexOf(corr.asset2);
-      correlationMatrix[i][j] = corr.correlation;
-      correlationMatrix[j][i] = corr.correlation;
-    });
+    // Calculate mean path
+    for (let i = 0; i < numPoints; i++) {
+      const values = simulationPaths.map(path => path[i]);
+      meanPath[i] = values.reduce((a, b) => a + b, 0) / values.length;
+      
+      // Sort values for percentile calculation
+      const sortedValues = values.sort((a, b) => a - b);
+      const lowerIdx = Math.floor(values.length * 0.05);
+      const upperIdx = Math.floor(values.length * 0.95);
+      
+      lowerBound[i] = sortedValues[lowerIdx];
+      upperBound[i] = sortedValues[upperIdx];
+    }
 
     return {
-      labels,
-      datasets: labels.map((label, i) => ({
-        label,
-        data: correlationMatrix[i],
-        backgroundColor: `hsla(${(i * 360) / labels.length}, 70%, 50%, 0.8)`,
-        borderColor: `hsla(${(i * 360) / labels.length}, 70%, 50%, 1)`,
-      })),
-    };
-  }, [metrics]);
-
-  const monteCarloChartData = useMemo(() => {
-    if (!monteCarloData) return null;
-
-    return {
-      labels: ['Current', '1 Year Forecast'],
+      labels: timeLabels,
       datasets: [
         {
-          label: 'Expected Value',
-          data: [metrics?.portfolioValue, monteCarloData.expectedValue],
-          borderColor: 'rgba(75, 192, 192, 1)',
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          label: 'Expected Path',
+          data: meanPath,
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.5)',
+          tension: 0.4,
         },
         {
-          label: '90% Confidence',
-          data: [metrics?.portfolioValue, monteCarloData.confidenceIntervals.ninety],
-          borderColor: 'rgba(255, 206, 86, 1)',
-          backgroundColor: 'rgba(255, 206, 86, 0.2)',
+          label: '95% Confidence Upper Bound',
+          data: upperBound,
+          borderColor: 'rgba(255, 99, 132, 0.5)',
+          backgroundColor: 'rgba(255, 99, 132, 0.1)',
+          borderDash: [5, 5],
+          tension: 0.4,
         },
         {
-          label: '95% Confidence',
-          data: [metrics?.portfolioValue, monteCarloData.confidenceIntervals.ninetyFive],
-          borderColor: 'rgba(255, 159, 64, 1)',
-          backgroundColor: 'rgba(255, 159, 64, 0.2)',
-        },
-        {
-          label: '99% Confidence',
-          data: [metrics?.portfolioValue, monteCarloData.confidenceIntervals.ninetyNine],
-          borderColor: 'rgba(255, 99, 132, 1)',
-          backgroundColor: 'rgba(255, 99, 132, 0.2)',
+          label: '95% Confidence Lower Bound',
+          data: lowerBound,
+          borderColor: 'rgba(255, 99, 132, 0.5)',
+          backgroundColor: 'rgba(255, 99, 132, 0.1)',
+          borderDash: [5, 5],
+          tension: 0.4,
+          fill: {
+            target: 1,
+            above: 'rgba(255, 99, 132, 0.1)',
+          },
         },
       ],
     };
-  }, [metrics, monteCarloData]);
+  }, [simulationPaths, timeLabels]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-      </div>
-    );
-  }
+  const options: ChartOptions<'line'> = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: true,
+        text: 'Portfolio Value Monte Carlo Simulation',
+      },
+      tooltip: {
+        callbacks: {
+          label: (context) => {
+            const value = context.parsed.y;
+            return `${context.dataset.label}: $${value.toLocaleString(undefined, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: 'Time Horizon',
+        },
+      },
+      y: {
+        title: {
+          display: true,
+          text: 'Portfolio Value ($)',
+        },
+        ticks: {
+          callback: (value) => 
+            `$${value.toLocaleString(undefined, {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}`,
+        },
+      },
+    },
+  };
 
-  if (error) {
-    return (
-      <div className="text-center py-12">
-        <div className="text-red-600 mb-4">{error}</div>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
+  if (!chartData) return null;
 
   return (
-    <div className="space-y-8">
-      {/* Key Risk Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-2">Value at Risk (95%)</h3>
-          <p className="text-3xl font-bold text-blue-600">
-            {metrics ? (metrics.valueAtRisk * 100).toFixed(2) + '%' : '-'}
-          </p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-2">Sharpe Ratio</h3>
-          <p className="text-3xl font-bold text-green-600">
-            {metrics ? metrics.sharpeRatio.toFixed(2) : '-'}
-          </p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-2">Portfolio Beta</h3>
-          <p className="text-3xl font-bold text-purple-600">
-            {metrics ? metrics.betaMetrics.portfolioBeta.toFixed(2) : '-'}
-          </p>
-        </div>
-      </div>
-
-      {/* Risk Breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Risk Breakdown</h3>
-          <div className="h-64">
-            <Bar
-              data={riskBreakdownData}
-              options={{
-                responsive: true,
-                plugins: {
-                  legend: {
-                    display: false,
-                  },
-                  title: {
-                    display: true,
-                    text: 'Systematic vs Unsystematic Risk',
-                  },
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    max: 100,
-                    ticks: {
-                      callback: value => value + '%',
-                    },
-                  },
-                },
-              }}
-            />
+    <div className="w-full h-full min-h-[400px]">
+      <Line data={chartData} options={options} />
+      <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
+        <div className="text-center">
+          <div className="font-semibold">5th Percentile</div>
+          <div className="text-red-500">
+            ${percentiles['5th'].toLocaleString()}
           </div>
         </div>
-
-        {/* Asset Betas */}
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Asset Betas</h3>
-          <div className="h-64">
-            <Bar
-              data={betaData}
-              options={{
-                responsive: true,
-                plugins: {
-                  legend: {
-                    display: false,
-                  },
-                  title: {
-                    display: true,
-                    text: 'Individual Asset Betas',
-                  },
-                },
-              }}
-            />
+        <div className="text-center">
+          <div className="font-semibold">Median</div>
+          <div className="text-blue-500">
+            ${percentiles['50th'].toLocaleString()}
+          </div>
+        </div>
+        <div className="text-center">
+          <div className="font-semibold">95th Percentile</div>
+          <div className="text-green-500">
+            ${percentiles['95th'].toLocaleString()}
           </div>
         </div>
       </div>
-
-      {/* Monte Carlo Simulation */}
-      {monteCarloChartData && (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Monte Carlo Simulation</h3>
-          <div className="h-96">
-            <Line
-              data={monteCarloChartData}
-              options={{
-                responsive: true,
-                plugins: {
-                  legend: {
-                    position: 'top',
-                  },
-                  title: {
-                    display: true,
-                    text: '1 Year Portfolio Value Forecast',
-                  },
-                },
-                scales: {
-                  y: {
-                    ticks: {
-                      callback: value => '$' + value.toLocaleString(),
-                    },
-                  },
-                },
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Correlation Matrix */}
-      {correlationData && (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-4">Asset Correlations</h3>
-          <div className="h-96">
-            <Radar
-              data={correlationData}
-              options={{
-                responsive: true,
-                plugins: {
-                  legend: {
-                    position: 'top',
-                  },
-                  title: {
-                    display: true,
-                    text: 'Asset Correlation Matrix',
-                  },
-                },
-                scales: {
-                  r: {
-                    min: -1,
-                    max: 1,
-                    ticks: {
-                      stepSize: 0.2,
-                    },
-                  },
-                },
-              }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
-}
+};
+
+export default RiskChart;
