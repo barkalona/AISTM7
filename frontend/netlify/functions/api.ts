@@ -4,8 +4,8 @@ import serverless from 'serverless-http';
 import cors from 'cors';
 import { createServer } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
-import { enhancedSolanaService } from '../../../backend/services/enhancedSolanaService';
-import { enhancedAIService } from '../../../backend/services/enhancedAIService';
+import { enhancedSolanaService } from './services/enhancedSolanaService';
+import { enhancedAIService } from './services/enhancedAIService';
 
 interface WebSocketMessage {
   type: 'subscribe_blockchain' | 'subscribe_ai';
