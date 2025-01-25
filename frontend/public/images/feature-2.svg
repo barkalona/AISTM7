@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="300" viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="card-gradient-2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2D88FF" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#59CBE8" stop-opacity="0.1"/>
+    </linearGradient>
+    <filter id="card-glow-2">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="300" fill="#0A0B0F"/>
+  <rect width="400" height="300" fill="url(#card-gradient-2)"/>
+
+  <!-- Manga Style Character (Female) -->
+  <g transform="translate(200, 100)">
+    <!-- Head -->
+    <circle cx="0" cy="0" r="35" fill="#2D88FF" opacity="0.2"/>
+    
+    <!-- Hair -->
+    <path d="M-30 -20 C-30 -40 30 -40 30 -20 L30 20 L-30 20 Z" 
+          fill="#59CBE8" opacity="0.8"/>
+    
+    <!-- Face -->
+    <path d="M-15 0 Q0 10 15 0" 
+          stroke="#59CBE8" 
+          stroke-width="2" 
+          fill="none"/>
+  </g>
+
+  <!-- Holographic UI -->
+  <g filter="url(#card-glow-2)">
+    <!-- Floating Windows -->
+    <rect x="50" y="50" width="100" height="60" rx="5" 
+          stroke="#59CBE8" stroke-width="1" fill="none" opacity="0.3"/>
+    <rect x="250" y="50" width="100" height="60" rx="5" 
+          stroke="#59CBE8" stroke-width="1" fill="none" opacity="0.3"/>
+    
+    <!-- Data Flow Lines -->
+    <g opacity="0.2">
+      <line x1="150" y1="80" x2="250" y2="80" stroke="#59CBE8">
+        <animate attributeName="x2" values="250;240;250" dur="2s" repeatCount="indefinite"/>
+      </line>
+      <line x1="150" y1="180" x2="250" y2="180" stroke="#59CBE8">
+        <animate attributeName="x2" values="250;240;250" dur="2s" repeatCount="indefinite"/>
+      </line>
+    </g>
+  </g>
+
+  <!-- Smart Features Text -->
+  <g font-family="monospace" fill="#59CBE8">
+    <text x="200" y="220" text-anchor="middle" font-size="24" filter="url(#card-glow-2)">
+      Smart Features
+    </text>
+    <text x="200" y="250" text-anchor="middle" font-size="14" opacity="0.6">
+      Automated Trading
+    </text>
+  </g>
+
+  <!-- Animated Elements -->
+  <g>
+    <!-- Pulse Points -->
+    <circle cx="100" cy="80" r="3" fill="#59CBE8">
+      <animate attributeName="r" values="3;4;3" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="300" cy="80" r="3" fill="#59CBE8">
+      <animate attributeName="r" values="3;4;3" dur="2s" repeatCount="indefinite" begin="1s"/>
+    </circle>
+  </g>
+
+  <!-- Tech Grid -->
+  <g opacity="0.1">
+    <line x1="0" y1="100" x2="400" y2="100" stroke="#59CBE8"/>
+    <line x1="0" y1="200" x2="400" y2="200" stroke="#59CBE8"/>
+    <line x1="100" y1="0" x2="100" y2="300" stroke="#59CBE8"/>
+    <line x1="300" y1="0" x2="300" y2="300" stroke="#59CBE8"/>
+  </g>
+</svg>

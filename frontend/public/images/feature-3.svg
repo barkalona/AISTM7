@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="300" viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="card-gradient-3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#59CBE8" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#2D88FF" stop-opacity="0.1"/>
+    </linearGradient>
+    <filter id="card-glow-3">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="300" fill="#0A0B0F"/>
+  <rect width="400" height="300" fill="url(#card-gradient-3)"/>
+
+  <!-- Blockchain Network Visualization -->
+  <g transform="translate(200, 150)">
+    <!-- Central Node -->
+    <circle cx="0" cy="0" r="30" fill="#0A0B0F" stroke="#59CBE8" stroke-width="2"/>
+    <circle cx="0" cy="0" r="25" fill="none" stroke="#59CBE8" stroke-width="1" opacity="0.5">
+      <animate attributeName="r" values="25;28;25" dur="3s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Outer Nodes -->
+    <g>
+      {[0, 60, 120, 180, 240, 300].map((angle, i) => `
+        <g transform="rotate(${angle})">
+          <!-- Node -->
+          <circle cx="80" cy="0" r="15" fill="#0A0B0F" stroke="#59CBE8" stroke-width="1.5"/>
+          
+          <!-- Connection Line -->
+          <line x1="30" y1="0" x2="65" y2="0" stroke="#59CBE8" stroke-width="1" opacity="0.5">
+            <animate attributeName="opacity" 
+                     values="0.5;1;0.5" 
+                     dur="2s" 
+                     begin="${i * 0.3}s"
+                     repeatCount="indefinite"/>
+          </line>
+
+          <!-- Data Flow -->
+          <circle cx="47.5" cy="0" r="2" fill="#59CBE8">
+            <animate attributeName="cx" 
+                     values="30;65;30" 
+                     dur="2s" 
+                     begin="${i * 0.3}s"
+                     repeatCount="indefinite"/>
+          </circle>
+        </g>
+      `).join('')}
+    </g>
+  </g>
+
+  <!-- Manga Style Character -->
+  <g transform="translate(320, 80)">
+    <!-- Head -->
+    <circle cx="0" cy="0" r="25" fill="#2D88FF" opacity="0.2"/>
+    
+    <!-- Face -->
+    <path d="M-10 0 Q0 5 10 0" 
+          stroke="#59CBE8" 
+          stroke-width="1.5" 
+          fill="none"/>
+    
+    <!-- Glasses -->
+    <path d="M-15 -5 L15 -5" stroke="#59CBE8" stroke-width="1.5"/>
+    <rect x="-12" y="-8" width="8" height="6" fill="#59CBE8"/>
+    <rect x="4" y="-8" width="8" height="6" fill="#59CBE8"/>
+  </g>
+
+  <!-- Text Elements -->
+  <g font-family="monospace" fill="#59CBE8">
+    <text x="200" y="220" text-anchor="middle" font-size="24" filter="url(#card-glow-3)">
+      How It Works
+    </text>
+    <text x="200" y="250" text-anchor="middle" font-size="14" opacity="0.6">
+      Blockchain Integration
+    </text>
+  </g>
+
+  <!-- Tech Grid -->
+  <g opacity="0.1">
+    <!-- Hexagonal Pattern -->
+    <path d="M50 50 L80 65 L80 95 L50 110 L20 95 L20 65 Z" stroke="#59CBE8" fill="none"/>
+    <path d="M320 200 L350 215 L350 245 L320 260 L290 245 L290 215 Z" stroke="#59CBE8" fill="none"/>
+  </g>
+
+  <!-- Data Points -->
+  <g>
+    <circle cx="50" cy="50" r="2" fill="#59CBE8">
+      <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="350" cy="250" r="2" fill="#59CBE8">
+      <animate attributeName="opacity" values="0.3;1;0.3" dur="2s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>

@@ -1,181 +1,431 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useSession } from 'next-auth/react';
-import { usePortfolioWebSocket } from '@/hooks/usePortfolioWebSocket';
-import { useRiskAnalysis } from '@/hooks/useRiskAnalysis';
-import DashboardLayout from '@/components/DashboardLayout';
-import RiskChart from '@/components/RiskChart';
-import RecommendationPanel from '@/components/RecommendationPanel';
-import { calculateAssetAllocation } from '@/types/portfolio';
-import { TokenGate } from '@/components/TokenGate';
+import DashboardLayout, { DashboardGrid, DashboardCard } from '../../components/DashboardLayout';
+import { LoadingButton } from '../../components/Loading';
+import { formatCurrency, formatPercentage, formatLargeNumber } from '../../utils/format';
+import { useNotifications } from '../../providers/NotificationProvider';
 
-function PortfolioContent() {
-  const { publicKey } = useWallet();
-  const { data: session } = useSession();
-  const { positions, loading: positionsLoading, error: positionsError } = usePortfolioWebSocket();
-  const { 
-    monteCarloResults,
-    isLoading: riskLoading,
-    runMonteCarloSimulation
-  } = useRiskAnalysis();
+interface Position {
+  symbol: string;
+  name: string;
+  quantity: number;
+  price: number;
+  value: number;
+  costBasis: number;
+  unrealizedPnL: number;
+  allocation: number;
+  dayChange: number;
+  weekChange: number;
+}
+
+interface PortfolioMetrics {
+  totalValue: number;
+  totalPnL: number;
+  dayChange: number;
+  weekChange: number;
+  monthChange: number;
+  yearChange: number;
+  cashBalance: number;
+  marginUsed: number;
+  buyingPower: number;
+}
+
+interface OptimizationSuggestion {
+  type: string;
+  description: string;
+  impact: {
+    risk: number;
+    return: number;
+  };
+  actions: Array<{
+    symbol: string;
+    action: 'buy' | 'sell';
+    quantity: number;
+    reason: string;
+  }>;
+}
+
+const PortfolioPage = () => {
+  const { connected, publicKey } = useWallet();
+  const { addNotification } = useNotifications();
+  const [loading, setLoading] = useState(true);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
+  const [suggestions, setSuggestions] = useState<OptimizationSuggestion[]>([]);
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof Position;
+    direction: 'asc' | 'desc';
+  }>({ key: 'value', direction: 'desc' });
 
   useEffect(() => {
-    if (session?.user?.id) {
-      runMonteCarloSimulation(10000, 252, 0.95);
+    if (connected && publicKey) {
+      fetchPortfolioData();
     }
-  }, [session?.user?.id, runMonteCarloSimulation]);
+  }, [connected, publicKey]);
 
-  const totalValue = useMemo(() => 
-    positions.reduce((sum, pos) => sum + pos.value, 0),
-    [positions]
-  );
+  const fetchPortfolioData = async () => {
+    try {
+      setLoading(true);
+      
+      // Simulated data - replace with actual API calls
+      const mockPositions: Position[] = [
+        {
+          symbol: 'BTC',
+          name: 'Bitcoin',
+          quantity: 2.5,
+          price: 45000,
+          value: 112500,
+          costBasis: 95000,
+          unrealizedPnL: 17500,
+          allocation: 0.35,
+          dayChange: 0.025,
+          weekChange: 0.045
+        },
+        {
+          symbol: 'ETH',
+          name: 'Ethereum',
+          quantity: 15,
+          price: 3000,
+          value: 45000,
+          costBasis: 40000,
+          unrealizedPnL: 5000,
+          allocation: 0.25,
+          dayChange: -0.015,
+          weekChange: 0.03
+        },
+        {
+          symbol: 'SOL',
+          name: 'Solana',
+          quantity: 500,
+          price: 100,
+          value: 50000,
+          costBasis: 45000,
+          unrealizedPnL: 5000,
+          allocation: 0.20,
+          dayChange: 0.035,
+          weekChange: 0.06
+        }
+      ];
 
-  const assetAllocation = useMemo(() => 
-    calculateAssetAllocation(positions),
-    [positions]
-  );
+      const mockMetrics: PortfolioMetrics = {
+        totalValue: 207500,
+        totalPnL: 27500,
+        dayChange: 0.023,
+        weekChange: 0.045,
+        monthChange: 0.12,
+        yearChange: 0.45,
+        cashBalance: 25000,
+        marginUsed: 50000,
+        buyingPower: 75000
+      };
 
-  if (!session || !publicKey) {
-    return (
-      <div className="text-center py-12">
-        <h2 className="text-xl font-semibold mb-4">
-          Please connect your wallet and sign in to view your portfolio
-        </h2>
-      </div>
-    );
-  }
+      const mockSuggestions: OptimizationSuggestion[] = [
+        {
+          type: 'Risk Reduction',
+          description: 'Reduce portfolio concentration in cryptocurrencies',
+          impact: {
+            risk: -0.15,
+            return: -0.05
+          },
+          actions: [
+            {
+              symbol: 'BTC',
+              action: 'sell',
+              quantity: 0.5,
+              reason: 'High correlation with other crypto assets'
+            },
+            {
+              symbol: 'ETH',
+              action: 'sell',
+              quantity: 3,
+              reason: 'Portfolio overweight in crypto sector'
+            }
+          ]
+        },
+        {
+          type: 'Return Optimization',
+          description: 'Increase exposure to high-momentum assets',
+          impact: {
+            risk: 0.05,
+            return: 0.12
+          },
+          actions: [
+            {
+              symbol: 'SOL',
+              action: 'buy',
+              quantity: 100,
+              reason: 'Strong technical indicators and momentum'
+            }
+          ]
+        }
+      ];
 
-  if (positionsLoading || riskLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-      </div>
-    );
-  }
+      setPositions(mockPositions);
+      setMetrics(mockMetrics);
+      setSuggestions(mockSuggestions);
+      
+      addNotification({
+        type: 'success',
+        title: 'Portfolio Updated',
+        message: 'Latest portfolio data loaded successfully',
+        userId: 'system'
+      });
+    } catch (error) {
+      console.error('Error fetching portfolio data:', error);
+      addNotification({
+        type: 'error',
+        title: 'Portfolio Error',
+        message: 'Failed to load portfolio data. Please try again.',
+        userId: 'system'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (positionsError) {
-    return (
-      <div className="text-center py-12">
-        <div className="text-red-600 mb-4">{positionsError}</div>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+  const sortPositions = (a: Position, b: Position) => {
+    if (a[sortConfig.key] < b[sortConfig.key]) {
+      return sortConfig.direction === 'asc' ? -1 : 1;
+    }
+    if (a[sortConfig.key] > b[sortConfig.key]) {
+      return sortConfig.direction === 'asc' ? 1 : -1;
+    }
+    return 0;
+  };
+
+  const handleSort = (key: keyof Position) => {
+    setSortConfig({
+      key,
+      direction:
+        sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc',
+    });
+  };
+
+  return (
+    <DashboardLayout
+      title="Portfolio"
+      subtitle="Portfolio holdings and optimization suggestions"
+      loading={loading}
+      actions={
+        <LoadingButton
+          loading={loading}
+          onClick={fetchPortfolioData}
+          variant="outline"
+          size="sm"
         >
-          Retry
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Portfolio Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-2">Total Value</h3>
-          <p className="text-3xl font-bold text-blue-600">
-            ${totalValue.toLocaleString()}
-          </p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-2">Number of Positions</h3>
-          <p className="text-3xl font-bold text-green-600">
-            {positions.length}
-          </p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold mb-2">Asset Classes</h3>
-          <p className="text-3xl font-bold text-purple-600">
-            {assetAllocation.length}
-          </p>
-        </div>
-      </div>
-
-      {/* Risk Analysis */}
-      <TokenGate>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Risk Charts */}
-          <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Risk Analysis</h2>
-            {monteCarloResults && (
-              <RiskChart
-                simulationPaths={monteCarloResults.simulation_paths}
-                percentiles={monteCarloResults.percentiles}
-                timeHorizon={252}
-              />
-            )}
+          Refresh Portfolio
+        </LoadingButton>
+      }
+    >
+      <DashboardGrid columns={3}>
+        {/* Portfolio Summary */}
+        <DashboardCard
+          title="Portfolio Summary"
+          className="col-span-2"
+        >
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total Value</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {metrics ? formatCurrency(metrics.totalValue) : '-'}
+              </p>
+              <p className={`text-sm ${
+                metrics?.dayChange && metrics.dayChange > 0
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-600 dark:text-red-400'
+              }`}>
+                {metrics ? formatPercentage(metrics.dayChange) : '-'} today
+              </p>
+            </div>
+            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total P&L</p>
+              <p className={`text-2xl font-bold ${
+                metrics?.totalPnL && metrics.totalPnL > 0
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-600 dark:text-red-400'
+              }`}>
+                {metrics ? formatCurrency(metrics.totalPnL) : '-'}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {metrics ? formatPercentage(metrics.yearChange) : '-'} YTD
+              </p>
+            </div>
+            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Cash Balance</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {metrics ? formatCurrency(metrics.cashBalance) : '-'}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Available</p>
+            </div>
+            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Buying Power</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {metrics ? formatCurrency(metrics.buyingPower) : '-'}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {metrics ? formatPercentage(metrics.marginUsed / metrics.totalValue) : '-'} margin used
+              </p>
+            </div>
           </div>
 
-          {/* AI Recommendations */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-            <RecommendationPanel accountId={session.user.id} />
-          </div>
-        </div>
-      </TokenGate>
-
-      {/* Position Details */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Positions</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allocation</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">24h Change</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {positions.map((position) => (
-                <tr key={position.contractId}>
-                  <td className="px-6 py-4">{position.symbol}</td>
-                  <td className="px-6 py-4">{position.assetClass}</td>
-                  <td className="px-6 py-4">{position.quantity}</td>
-                  <td className="px-6 py-4">{formatCurrency(position.value)}</td>
-                  <td className="px-6 py-4">{formatPercentage(position.allocation)}</td>
-                  <td className={`px-6 py-4 ${
-                    position.change24h > 0 
-                      ? 'text-green-600' 
-                      : position.change24h < 0 
-                      ? 'text-red-600' 
-                      : ''
-                  }`}>
-                    {formatPercentage(position.change24h)}
-                  </td>
+          {/* Positions Table */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead>
+                <tr>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('symbol')}
+                  >
+                    Asset
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('quantity')}
+                  >
+                    Quantity
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('price')}
+                  >
+                    Price
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('value')}
+                  >
+                    Value
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('unrealizedPnL')}
+                  >
+                    P&L
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                    onClick={() => handleSort('dayChange')}
+                  >
+                    24h
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {positions.sort(sortPositions).map((position) => (
+                  <tr key={position.symbol}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {position.symbol}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {position.name}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
+                      {position.quantity.toFixed(4)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
+                      {formatCurrency(position.price)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 dark:text-white">
+                      {formatCurrency(position.value)}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-right text-sm ${
+                      position.unrealizedPnL > 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {formatCurrency(position.unrealizedPnL)}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-right text-sm ${
+                      position.dayChange > 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {formatPercentage(position.dayChange)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DashboardCard>
 
-export default function PortfolioPage() {
-  return (
-    <DashboardLayout>
-      <PortfolioContent />
+        {/* Optimization Suggestions */}
+        <DashboardCard
+          title="Portfolio Optimization"
+          className="row-span-2"
+        >
+          <div className="space-y-4">
+            {suggestions.map((suggestion, index) => (
+              <div
+                key={index}
+                className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg"
+              >
+                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                  {suggestion.type}
+                </h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                  {suggestion.description}
+                </p>
+                <div className="flex justify-between mb-4">
+                  <div className="text-sm">
+                    <span className="text-gray-500 dark:text-gray-400">Risk Impact: </span>
+                    <span className={suggestion.impact.risk < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                      {formatPercentage(suggestion.impact.risk)}
+                    </span>
+                  </div>
+                  <div className="text-sm">
+                    <span className="text-gray-500 dark:text-gray-400">Return Impact: </span>
+                    <span className={suggestion.impact.return > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                      {formatPercentage(suggestion.impact.return)}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {suggestion.actions.map((action, actionIndex) => (
+                    <div
+                      key={actionIndex}
+                      className="flex justify-between items-center text-sm"
+                    >
+                      <div>
+                        <span className={`font-medium ${
+                          action.action === 'buy'
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {action.action.toUpperCase()}
+                        </span>
+                        <span className="text-gray-900 dark:text-white">
+                          {' '}{action.quantity} {action.symbol}
+                        </span>
+                      </div>
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">
+                        {action.reason}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </DashboardCard>
+      </DashboardGrid>
     </DashboardLayout>
   );
-}
+};
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value);
-}
-
-function formatPercentage(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'percent',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value / 100);
-}
+export default PortfolioPage;

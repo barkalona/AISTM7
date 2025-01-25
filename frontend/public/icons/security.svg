@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tech-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#60A5FA"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background Circle -->
+  <circle cx="20" cy="20" r="18" 
+          fill="white" 
+          stroke="url(#tech-gradient)" 
+          stroke-width="2"/>
+
+  <!-- Fingerprint Pattern -->
+  <g filter="url(#glow)" fill="none" stroke="url(#tech-gradient)" stroke-width="1.5">
+    <!-- Center Circle -->
+    <circle cx="20" cy="20" r="3"/>
+    
+    <!-- Fingerprint Arcs -->
+    <path d="M17 20 C17 18 23 18 23 20"/>
+    <path d="M15 20 C15 16 25 16 25 20"/>
+    <path d="M13 20 C13 14 27 14 27 20"/>
+    
+    <!-- Scan Lines -->
+    <line x1="12" y1="20" x2="28" y2="20" 
+          stroke="#60A5FA" 
+          stroke-width="0.5">
+      <animate attributeName="y1" 
+               values="16;24;16"
+               dur="2s"
+               repeatCount="indefinite"/>
+      <animate attributeName="y2" 
+               values="16;24;16"
+               dur="2s"
+               repeatCount="indefinite"/>
+      <animate attributeName="opacity"
+               values="0.2;1;0.2"
+               dur="2s"
+               repeatCount="indefinite"/>
+    </line>
+  </g>
+
+  <!-- Data Points -->
+  <g fill="#2563EB">
+    <circle cx="15" cy="20" r="1"/>
+    <circle cx="25" cy="20" r="1"/>
+    <circle cx="20" cy="15" r="1"/>
+    <circle cx="20" cy="25" r="1"/>
+  </g>
+
+  <!-- Status Indicators -->
+  <g stroke="#60A5FA" stroke-width="0.5" fill="none">
+    <circle cx="20" cy="20" r="8" stroke-dasharray="2 2"/>
+    <circle cx="20" cy="20" r="12" stroke-dasharray="2 2"/>
+  </g>
+
+  <!-- Scanning Animation -->
+  <rect x="12" y="16" width="16" height="8" 
+        fill="url(#tech-gradient)" 
+        opacity="0.1">
+    <animate attributeName="y"
+             values="16;24;16"
+             dur="2s"
+             repeatCount="indefinite"/>
+  </rect>
+
+  <!-- Pulse Animation -->
+  <circle cx="20" cy="20" r="16" 
+          stroke="#2563EB" 
+          stroke-width="0.5"
+          stroke-dasharray="2 2"
+          fill="none">
+    <animate attributeName="r" 
+             values="16;18;16" 
+             dur="2s" 
+             repeatCount="indefinite"/>
+    <animate attributeName="opacity" 
+             values="0.6;0.2;0.6" 
+             dur="2s" 
+             repeatCount="indefinite"/>
+  </circle>
+</svg>

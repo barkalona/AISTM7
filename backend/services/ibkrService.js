@@ -6,25 +6,41 @@ class IBKRService {
     this.sessions = new Map(); // Store active sessions by userId
     this.webSockets = new Map(); // Store WebSocket connections by userId
     this.marketDataSubscriptions = new Map(); // Store market data subscriptions by userId
+    
+    // Validate required environment variables
+    if (!process.env.IBKR_API_ENDPOINT) {
+      throw new Error('IBKR_API_ENDPOINT environment variable is required');
+    }
+    
+    this.apiEndpoint = process.env.IBKR_API_ENDPOINT;
   }
 
   async createClient(userId) {
-    const credentials = await IBKRCredentials.findOne({ userId });
-    if (!credentials) {
-      throw new Error('IBKR credentials not found');
-    }
+    try {
+      const credentials = await IBKRCredentials.findOne({ userId });
+      if (!credentials) {
+        throw new Error('IBKR credentials not found');
+      }
 
-    const { username, password } = await credentials.decryptCredentials();
-    
-    return axios.create({
-      baseURL: 'https://localhost:5000/v1/api',
-      auth: { username, password },
-      headers: {
-        'User-Agent': 'AISTM7/1.0.0',
-        'Content-Type': 'application/json'
-      },
-      validateStatus: status => status < 500 // Don't throw on 4xx errors
-    });
+      const { username, password } = credentials;
+      if (!username || !password) {
+        throw new Error('Invalid IBKR credentials');
+      }
+      
+      return axios.create({
+        baseURL: this.apiEndpoint,
+        auth: { username, password },
+        headers: {
+          'User-Agent': 'AISTM7/1.0.0',
+          'Content-Type': 'application/json'
+        },
+        validateStatus: status => status < 500 // Don't throw on 4xx errors
+      });
+    } catch (error) {
+      console.error('Error creating IBKR client:', error);
+      await this.updateConnectionStatus(userId, 'error', error.message);
+      throw error;
+    }
   }
 
   async getClient(userId) {
@@ -37,26 +53,39 @@ class IBKRService {
   async testConnection(username, password) {
     try {
       const testClient = axios.create({
-        baseURL: 'https://localhost:5000/v1/api',
+        baseURL: this.apiEndpoint,
         auth: { username, password }
       });
 
       const response = await testClient.post('/iserver/auth/status');
       
-      if (response.data.authenticated) {
-        return { success: true };
-      } else {
-        return { 
-          success: false,
-          error: 'Authentication failed'
-        };
-      }
+      const result = {
+        success: response.data.authenticated,
+        error: response.data.authenticated ? null : 'Authentication failed'
+      };
+
+      return result;
     } catch (error) {
       console.error('IBKR connection test failed:', error);
       return {
         success: false,
         error: error.response?.data?.message || error.message
       };
+    }
+  }
+
+  async updateConnectionStatus(userId, status, error = null) {
+    try {
+      await IBKRCredentials.findOneAndUpdate(
+        { userId },
+        { 
+          connectionStatus: status,
+          lastError: error,
+          lastSync: new Date()
+        }
+      );
+    } catch (dbError) {
+      console.error('Error updating connection status:', dbError);
     }
   }
 
@@ -76,9 +105,13 @@ class IBKRService {
       // Start session keepalive
       this.startKeepAlive(userId);
 
+      // Update connection status
+      await this.updateConnectionStatus(userId, 'connected');
+
       return true;
     } catch (error) {
       console.error('Failed to initialize IBKR session:', error);
+      await this.updateConnectionStatus(userId, 'error', error.message);
       throw error;
     }
   }
@@ -94,6 +127,9 @@ class IBKRService {
         await client.post('/logout');
         this.sessions.delete(userId);
         this.stopKeepAlive(userId);
+        
+        // Update connection status
+        await this.updateConnectionStatus(userId, 'disconnected');
       }
     } catch (error) {
       console.error('Error closing IBKR session:', error);
@@ -182,9 +218,13 @@ class IBKRService {
     }
   }
 
-  // Market Data Polling
+  // Market Data Polling with error handling and retry logic
   startMarketDataPolling(userId) {
     if (this.sessions.has(`${userId}_marketdata_polling`)) return;
+
+    let consecutiveErrors = 0;
+    const maxRetries = 3;
+    const retryDelay = 5000; // 5 seconds
 
     const interval = setInterval(async () => {
       try {
@@ -213,8 +253,21 @@ class IBKRService {
             }));
           }
         }
+        
+        // Reset error counter on successful poll
+        consecutiveErrors = 0;
       } catch (error) {
         console.error('Error polling market data:', error);
+        consecutiveErrors++;
+
+        if (consecutiveErrors >= maxRetries) {
+          console.error(`Max retries (${maxRetries}) reached for market data polling. Stopping.`);
+          this.stopMarketDataPolling(userId);
+          this.updateConnectionStatus(userId, 'error', 'Market data polling failed');
+        } else {
+          // Wait before next retry
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
       }
     }, 1000); // Poll every second
 
@@ -229,7 +282,7 @@ class IBKRService {
     }
   }
 
-  // Portfolio Operations
+  // Portfolio Operations with improved error handling
   async getPortfolio(userId) {
     try {
       const client = await this.getClient(userId);
@@ -237,6 +290,7 @@ class IBKRService {
       return response.data;
     } catch (error) {
       console.error('Error fetching portfolio:', error);
+      await this.updateConnectionStatus(userId, 'error', 'Failed to fetch portfolio data');
       throw error;
     }
   }
@@ -265,6 +319,7 @@ class IBKRService {
       return response.data;
     } catch (error) {
       console.error('Error fetching account summary:', error);
+      await this.updateConnectionStatus(userId, 'error', 'Failed to fetch account summary');
       throw error;
     }
   }
@@ -276,23 +331,34 @@ class IBKRService {
       return response.data;
     } catch (error) {
       console.error('Error fetching positions:', error);
+      await this.updateConnectionStatus(userId, 'error', 'Failed to fetch positions');
       throw error;
     }
   }
 
-  // Session keepalive
+  // Session keepalive with improved error handling
   startKeepAlive(userId) {
+    let consecutiveErrors = 0;
+    const maxErrors = 3;
+
     const interval = setInterval(async () => {
       try {
         const client = this.sessions.get(userId);
         if (client) {
           await client.post('/tickle');
+          consecutiveErrors = 0; // Reset error counter on success
         } else {
           this.stopKeepAlive(userId);
         }
       } catch (error) {
         console.error('Keepalive failed for user:', userId, error);
-        this.stopKeepAlive(userId);
+        consecutiveErrors++;
+
+        if (consecutiveErrors >= maxErrors) {
+          console.error(`Keepalive failed ${maxErrors} times, closing session`);
+          this.stopKeepAlive(userId);
+          this.closeSession(userId).catch(console.error);
+        }
       }
     }, 45000); // Ping every 45 seconds
 

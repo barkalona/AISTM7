@@ -1,24 +1,25 @@
-'use client';
+"use client";
 
-import { SessionProvider } from 'next-auth/react';
-import { ThemeProvider } from './ThemeProvider';
-import { NotificationProvider } from './NotificationProvider';
-import { WalletProvider } from './WalletProvider';
+import { ThemeProvider } from 'next-themes';
+import { WalletProvider } from '@solana/wallet-adapter-react';
+import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
+import { useMemo } from 'react';
 
-interface ProvidersProps {
-  children: React.ReactNode;
-}
+export default function Providers({ children }: { children: React.ReactNode }) {
+  // Initialize wallet adapters
+  const wallets = useMemo(
+    () => [
+      new PhantomWalletAdapter(),
+      new SolflareWalletAdapter(),
+    ],
+    []
+  );
 
-export default function Providers({ children }: ProvidersProps) {
   return (
-    <SessionProvider>
-      <ThemeProvider>
-        <NotificationProvider>
-          <WalletProvider>
-            {children}
-          </WalletProvider>
-        </NotificationProvider>
-      </ThemeProvider>
-    </SessionProvider>
+    <ThemeProvider attribute="class" defaultTheme="light">
+      <WalletProvider wallets={wallets} autoConnect>
+        {children}
+      </WalletProvider>
+    </ThemeProvider>
   );
 }

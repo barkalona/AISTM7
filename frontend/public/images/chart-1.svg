@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="160" viewBox="0 0 256 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="chart-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#59CBE8" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#59CBE8" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="line-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#59CBE8"/>
+      <stop offset="100%" stop-color="#2D88FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Grid Lines -->
+  <g opacity="0.1">
+    <line x1="0" y1="40" x2="256" y2="40" stroke="#59CBE8"/>
+    <line x1="0" y1="80" x2="256" y2="80" stroke="#59CBE8"/>
+    <line x1="0" y1="120" x2="256" y2="120" stroke="#59CBE8"/>
+    <line x1="64" y1="0" x2="64" y2="160" stroke="#59CBE8"/>
+    <line x1="128" y1="0" x2="128" y2="160" stroke="#59CBE8"/>
+    <line x1="192" y1="0" x2="192" y2="160" stroke="#59CBE8"/>
+  </g>
+
+  <!-- Chart Line -->
+  <path d="M0 120 L32 100 L64 110 L96 80 L128 90 L160 40 L192 60 L224 30 L256 50" 
+        stroke="url(#line-gradient)" 
+        stroke-width="2"
+        fill="none">
+    <animate attributeName="d" 
+             dur="3s"
+             repeatCount="indefinite"
+             values="
+               M0 120 L32 100 L64 110 L96 80 L128 90 L160 40 L192 60 L224 30 L256 50;
+               M0 100 L32 110 L64 90 L96 100 L128 60 L160 70 L192 40 L224 50 L256 30;
+               M0 120 L32 100 L64 110 L96 80 L128 90 L160 40 L192 60 L224 30 L256 50"
+    />
+  </path>
+
+  <!-- Area Fill -->
+  <path d="M0 120 L32 100 L64 110 L96 80 L128 90 L160 40 L192 60 L224 30 L256 50 L256 160 L0 160 Z" 
+        fill="url(#chart-gradient)">
+    <animate attributeName="d" 
+             dur="3s"
+             repeatCount="indefinite"
+             values="
+               M0 120 L32 100 L64 110 L96 80 L128 90 L160 40 L192 60 L224 30 L256 50 L256 160 L0 160 Z;
+               M0 100 L32 110 L64 90 L96 100 L128 60 L160 70 L192 40 L224 50 L256 30 L256 160 L0 160 Z;
+               M0 120 L32 100 L64 110 L96 80 L128 90 L160 40 L192 60 L224 30 L256 50 L256 160 L0 160 Z"
+    />
+  </path>
+
+  <!-- Data Points -->
+  <g>
+    <circle cx="32" cy="100" r="3" fill="#59CBE8">
+      <animate attributeName="cy" dur="3s" repeatCount="indefinite" values="100;110;100"/>
+    </circle>
+    <circle cx="128" cy="90" r="3" fill="#59CBE8">
+      <animate attributeName="cy" dur="3s" repeatCount="indefinite" values="90;60;90"/>
+    </circle>
+    <circle cx="224" cy="30" r="3" fill="#59CBE8">
+      <animate attributeName="cy" dur="3s" repeatCount="indefinite" values="30;50;30"/>
+    </circle>
+  </g>
+
+  <!-- Labels -->
+  <g fill="#59CBE8" font-family="monospace" font-size="10">
+    <text x="4" y="20" opacity="0.6">BTC/USD</text>
+    <text x="4" y="35" opacity="0.8">$45,230</text>
+    <text x="200" y="20" opacity="0.6" text-anchor="end">+5.2%</text>
+  </g>
+</svg>

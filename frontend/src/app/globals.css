@@ -1,3 +1,132 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --neon-blue: #59CBE8;
+  --neon-blue-glow: rgba(89, 203, 232, 0.5);
+  --dark-navy: #1E293B;
+  --dark-black: #0a0b0f;
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--dark-black)] text-white;
+  }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse-slow 2s infinite;
+  }
+
+  .animate-spin-slow {
+    animation: spin-slow 6s linear infinite;
+  }
+
+  .animate-stream {
+    animation: stream 2s linear infinite;
+  }
+
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite;
+  }
+
+  .scan-line {
+    animation: scan 3s linear infinite;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes stream {
+  0% {
+    transform: translateX(-100%) rotate(-45deg);
+  }
+  100% {
+    transform: translateX(100%) rotate(-45deg);
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    text-shadow: 0 0 10px var(--neon-blue-glow),
+                 0 0 20px var(--neon-blue-glow),
+                 0 0 30px var(--neon-blue-glow);
+  }
+  50% {
+    text-shadow: 0 0 20px var(--neon-blue-glow),
+                 0 0 30px var(--neon-blue-glow),
+                 0 0 40px var(--neon-blue-glow);
+  }
+}
+
+@keyframes scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+/* Glass Panel Effect */
+.glass-panel {
+  background: rgba(89, 203, 232, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(89, 203, 232, 0.2);
+}
+
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(45deg, transparent, rgba(89, 203, 232, 0.2), transparent);
+  opacity: 0.3;
+  animation: pulse-slow 2s ease-in-out infinite;
+}
+
+/* Neon Text Effect */
+.neon-text {
+  color: var(--neon-blue);
+  text-shadow: 0 0 10px var(--neon-blue-glow),
+               0 0 20px var(--neon-blue-glow),
+               0 0 30px var(--neon-blue-glow);
+}
+
+/* Tech Grid Background */
+.tech-grid {
+  background-image: 
+    linear-gradient(to right, rgba(89, 203, 232, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(89, 203, 232, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+}

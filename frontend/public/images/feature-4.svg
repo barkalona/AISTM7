@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="300" viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="card-gradient-4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2D88FF" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#59CBE8" stop-opacity="0.1"/>
+    </linearGradient>
+    <filter id="card-glow-4">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="300" fill="#0A0B0F"/>
+  <rect width="400" height="300" fill="url(#card-gradient-4)"/>
+
+  <!-- Real-time Monitoring Display -->
+  <g transform="translate(50, 50)">
+    <!-- Main Monitor Frame -->
+    <rect x="0" y="0" width="200" height="150" rx="5" 
+          stroke="#59CBE8" stroke-width="2" fill="none"/>
+    
+    <!-- Screen Content -->
+    <g transform="translate(10, 10)">
+      <!-- Data Lines -->
+      <g stroke="#59CBE8" stroke-width="1" opacity="0.5">
+        <path d="M0 65 L180 65">
+          <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite"/>
+        </path>
+        <path d="M0 85 L180 85">
+          <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" begin="0.5s" repeatCount="indefinite"/>
+        </path>
+        <path d="M0 105 L180 105">
+          <animate attributeName="opacity" values="0.5;1;0.5" dur="2s" begin="1s" repeatCount="indefinite"/>
+        </path>
+      </g>
+
+      <!-- Live Data Points -->
+      <g fill="#59CBE8">
+        <circle cx="30" cy="65" r="3">
+          <animate attributeName="r" values="3;4;3" dur="1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="90" cy="85" r="3">
+          <animate attributeName="r" values="3;4;3" dur="1s" begin="0.3s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="150" cy="105" r="3">
+          <animate attributeName="r" values="3;4;3" dur="1s" begin="0.6s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+      <!-- Status Indicators -->
+      <g transform="translate(0, 20)">
+        <circle cx="10" cy="0" r="4" fill="#59CBE8">
+          <animate attributeName="fill-opacity" values="1;0.5;1" dur="1s" repeatCount="indefinite"/>
+        </circle>
+        <text x="20" y="4" fill="#59CBE8" font-family="monospace" font-size="10">LIVE</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Manga Style Character -->
+  <g transform="translate(300, 100)">
+    <!-- Head -->
+    <circle cx="0" cy="0" r="30" fill="#2D88FF" opacity="0.2"/>
+    
+    <!-- Hair -->
+    <path d="M-20 -20 C-20 -35 20 -35 20 -20 L20 10 L-20 10 Z" 
+          fill="#59CBE8" opacity="0.8"/>
+    
+    <!-- Face -->
+    <path d="M-10 0 Q0 5 10 0" 
+          stroke="#59CBE8" 
+          stroke-width="1.5" 
+          fill="none"/>
+    
+    <!-- Expression Lines -->
+    <path d="M-15 -10 L-5 -10" stroke="#59CBE8" stroke-width="1"/>
+    <path d="M5 -10 L15 -10" stroke="#59CBE8" stroke-width="1"/>
+  </g>
+
+  <!-- Floating Data Elements -->
+  <g filter="url(#card-glow-4)">
+    <!-- Mini Charts -->
+    <g transform="translate(280, 200)">
+      <path d="M0 20 L20 10 L40 25 L60 5 L80 15" 
+            stroke="#59CBE8" 
+            stroke-width="1.5"
+            fill="none">
+        <animate attributeName="d" 
+                 values="M0 20 L20 10 L40 25 L60 5 L80 15;
+                        M0 15 L20 25 L40 10 L60 20 L80 5;
+                        M0 20 L20 10 L40 25 L60 5 L80 15"
+                 dur="3s"
+                 repeatCount="indefinite"/>
+      </path>
+    </g>
+  </g>
+
+  <!-- Text Elements -->
+  <g font-family="monospace" fill="#59CBE8">
+    <text x="200" y="220" text-anchor="middle" font-size="24" filter="url(#card-glow-4)">
+      How It Works
+    </text>
+    <text x="200" y="250" text-anchor="middle" font-size="14" opacity="0.6">
+      Real-time Monitoring
+    </text>
+  </g>
+
+  <!-- Tech Grid -->
+  <g opacity="0.1">
+    <line x1="0" y1="150" x2="400" y2="150" stroke="#59CBE8"/>
+    <line x1="200" y1="0" x2="200" y2="300" stroke="#59CBE8"/>
+  </g>
+</svg>
