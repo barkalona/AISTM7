@@ -1,11 +1,18 @@
 const axios = require('axios');
 const IBKRCredentials = require('../models/ibkrCredentials');
+const wsManager = require('./websocketManager');
+const marketDataManager = require('./marketDataManager');
+const EventEmitter = require('events');
 
-class IBKRService {
+class IBKRService extends EventEmitter {
   constructor() {
+    super();
     this.sessions = new Map(); // Store active sessions by userId
-    this.webSockets = new Map(); // Store WebSocket connections by userId
     this.marketDataSubscriptions = new Map(); // Store market data subscriptions by userId
+    
+    // Handle WebSocket reconnection
+    wsManager.on('reconnect', this.handleReconnect.bind(this));
+    wsManager.on('max_reconnect_attempts', this.handleMaxReconnectAttempts.bind(this));
   }
 
   async createClient(userId) {
@@ -103,13 +110,54 @@ class IBKRService {
 
   // WebSocket Management
   addWebSocket(userId, ws) {
-    this.webSockets.set(userId, ws);
+    wsManager.addConnection(userId, ws);
+    
+    // Restore any cached market data
+    const userSubscriptions = this.marketDataSubscriptions.get(userId);
+    if (userSubscriptions) {
+      for (const contractId of userSubscriptions.keys()) {
+        const cachedData = marketDataManager.getCachedData(contractId);
+        if (cachedData) {
+          wsManager.sendMessage(userId, {
+            type: 'marketData',
+            contractId,
+            data: cachedData
+          });
+        }
+      }
+    }
   }
 
   removeWebSocket(userId) {
-    this.webSockets.delete(userId);
-    // Clean up market data subscriptions when WebSocket closes
+    wsManager.removeConnection(userId);
     this.unsubscribeAllMarketData(userId);
+  }
+
+  // Handle WebSocket reconnection
+  async handleReconnect(userId) {
+    try {
+      // Verify session is still valid
+      const client = await this.getClient(userId);
+      const authResponse = await client.post('/iserver/auth/status');
+      
+      if (!authResponse.data.authenticated) {
+        await this.initializeSession(userId);
+      }
+
+      // Resubscribe to market data
+      const userSubscriptions = this.marketDataSubscriptions.get(userId);
+      if (userSubscriptions) {
+        const contractIds = Array.from(userSubscriptions.keys());
+        await this.subscribeMarketData(userId, contractIds);
+      }
+    } catch (error) {
+      console.error('Error handling reconnection:', error);
+    }
+  }
+
+  handleMaxReconnectAttempts(userId) {
+    this.emit('connection_failed', userId);
+    this.closeSession(userId);
   }
 
   // Market Data Subscription
@@ -118,28 +166,42 @@ class IBKRService {
       const client = await this.getClient(userId);
       const subscriptions = [];
 
-      for (const contractId of contractIds) {
-        const response = await client.post('/iserver/marketdata/snapshot', {
-          conid: contractId,
-          fields: ['31', '83', '84', '85', '86', '88'] // Bid, Ask, Last, Volume, etc.
+      // Batch subscribe requests
+      const batchSize = 10;
+      for (let i = 0; i < contractIds.length; i += batchSize) {
+        const batch = contractIds.slice(i, i + batchSize);
+        const promises = batch.map(async (contractId) => {
+          try {
+            const response = await client.post('/iserver/marketdata/snapshot', {
+              conid: contractId,
+              fields: ['31', '83', '84', '85', '86', '88']
+            });
+
+            if (response.data.success) {
+              subscriptions.push({
+                contractId,
+                subscriptionId: response.data.subscriptionId
+              });
+
+              // Store subscription
+              if (!this.marketDataSubscriptions.has(userId)) {
+                this.marketDataSubscriptions.set(userId, new Map());
+              }
+              this.marketDataSubscriptions.get(userId).set(contractId, response.data.subscriptionId);
+
+              // Initialize market data cache
+              marketDataManager.queueUpdate(contractId, response.data);
+            }
+          } catch (error) {
+            console.error(`Error subscribing to contract ${contractId}:`, error);
+          }
         });
 
-        if (response.data.success) {
-          subscriptions.push({
-            contractId,
-            subscriptionId: response.data.subscriptionId
-          });
-
-          // Store subscription
-          if (!this.marketDataSubscriptions.has(userId)) {
-            this.marketDataSubscriptions.set(userId, new Map());
-          }
-          this.marketDataSubscriptions.get(userId).set(contractId, response.data.subscriptionId);
-        }
+        await Promise.all(promises);
       }
 
-      // Start market data polling for this user
-      this.startMarketDataPolling(userId);
+      // Start adaptive polling for this user
+      this.startAdaptivePolling(userId);
 
       return subscriptions;
     } catch (error) {
@@ -155,17 +217,29 @@ class IBKRService {
 
       if (!userSubscriptions) return;
 
-      for (const contractId of contractIds) {
-        const subscriptionId = userSubscriptions.get(contractId);
-        if (subscriptionId) {
-          await client.delete(`/iserver/marketdata/${subscriptionId}`);
-          userSubscriptions.delete(contractId);
-        }
+      // Batch unsubscribe requests
+      const batchSize = 10;
+      for (let i = 0; i < contractIds.length; i += batchSize) {
+        const batch = contractIds.slice(i, i + batchSize);
+        const promises = batch.map(async (contractId) => {
+          const subscriptionId = userSubscriptions.get(contractId);
+          if (subscriptionId) {
+            try {
+              await client.delete(`/iserver/marketdata/${subscriptionId}`);
+              userSubscriptions.delete(contractId);
+              marketDataManager.clearContract(contractId);
+            } catch (error) {
+              console.error(`Error unsubscribing from contract ${contractId}:`, error);
+            }
+          }
+        });
+
+        await Promise.all(promises);
       }
 
       // If no more subscriptions, stop polling
       if (userSubscriptions.size === 0) {
-        this.stopMarketDataPolling(userId);
+        this.stopAdaptivePolling(userId);
       }
     } catch (error) {
       console.error('Error unsubscribing from market data:', error);
@@ -182,50 +256,98 @@ class IBKRService {
     }
   }
 
-  // Market Data Polling
-  startMarketDataPolling(userId) {
+  // Adaptive Market Data Polling
+  startAdaptivePolling(userId) {
     if (this.sessions.has(`${userId}_marketdata_polling`)) return;
 
-    const interval = setInterval(async () => {
+    const pollMarketData = async () => {
       try {
         const userSubscriptions = this.marketDataSubscriptions.get(userId);
         if (!userSubscriptions || userSubscriptions.size === 0) {
-          this.stopMarketDataPolling(userId);
+          this.stopAdaptivePolling(userId);
           return;
         }
 
         const client = await this.getClient(userId);
-        const ws = this.webSockets.get(userId);
 
-        for (const [contractId, subscriptionId] of userSubscriptions) {
-          const response = await client.get(`/iserver/marketdata/snapshot`, {
-            params: {
-              conid: contractId,
-              fields: ['31', '83', '84', '85', '86', '88']
+        // Group contracts by polling interval
+        const contractsByInterval = new Map();
+        for (const [contractId] of userSubscriptions) {
+          const interval = marketDataManager.calculatePollingInterval(contractId);
+          if (!contractsByInterval.has(interval)) {
+            contractsByInterval.set(interval, []);
+          }
+          contractsByInterval.get(interval).push(contractId);
+        }
+
+        // Schedule polling for each interval group
+        for (const [interval, contracts] of contractsByInterval) {
+          if (!this.sessions.has(`${userId}_${interval}_polling`)) {
+            const intervalId = setInterval(async () => {
+              // Batch requests for this interval
+              const batchSize = 10;
+              for (let i = 0; i < contracts.length; i += batchSize) {
+                const batch = contracts.slice(i, i + batchSize);
+                const promises = batch.map(async (contractId) => {
+                  try {
+                    const response = await client.get(`/iserver/marketdata/snapshot`, {
+                      params: {
+                        conid: contractId,
+                        fields: ['31', '83', '84', '85', '86', '88']
+                      }
+                    });
+
+                    marketDataManager.queueUpdate(contractId, response.data);
+                  } catch (error) {
+                    console.error(`Error polling contract ${contractId}:`, error);
+                  }
+                });
+
+                await Promise.all(promises);
+              }
+            }, interval);
+
+            this.sessions.set(`${userId}_${interval}_polling`, intervalId);
+          }
+        }
+
+        // Clean up unused intervals
+        for (const [key, intervalId] of this.sessions) {
+          if (key.startsWith(`${userId}_`) && key.endsWith('_polling')) {
+            const interval = parseInt(key.split('_')[1]);
+            if (!contractsByInterval.has(interval)) {
+              clearInterval(intervalId);
+              this.sessions.delete(key);
             }
-          });
-
-          if (ws && ws.readyState === 1) { // WebSocket.OPEN
-            ws.send(JSON.stringify({
-              type: 'marketData',
-              contractId,
-              data: response.data
-            }));
           }
         }
       } catch (error) {
-        console.error('Error polling market data:', error);
+        console.error('Error in adaptive polling:', error);
       }
-    }, 1000); // Poll every second
+    };
 
-    this.sessions.set(`${userId}_marketdata_polling`, interval);
+    // Initial poll and setup
+    pollMarketData();
+
+    // Listen for market data updates
+    marketDataManager.on('updates', (updates) => {
+      const state = wsManager.getConnectionState(userId);
+      if (state === 'connected') {
+        wsManager.sendMessage(userId, {
+          type: 'marketData',
+          updates
+        });
+      }
+    });
   }
 
-  stopMarketDataPolling(userId) {
-    const intervalId = this.sessions.get(`${userId}_marketdata_polling`);
-    if (intervalId) {
-      clearInterval(intervalId);
-      this.sessions.delete(`${userId}_marketdata_polling`);
+  stopAdaptivePolling(userId) {
+    // Clear all polling intervals for this user
+    for (const [key, intervalId] of this.sessions) {
+      if (key.startsWith(`${userId}_`) && key.endsWith('_polling')) {
+        clearInterval(intervalId);
+        this.sessions.delete(key);
+      }
     }
   }
 

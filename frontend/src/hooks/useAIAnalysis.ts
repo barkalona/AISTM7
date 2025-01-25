@@ -1,237 +1,210 @@
-import { useState, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
-import { useNotifications } from '@/providers/NotificationProvider';
+'use client';
 
-interface PricePrediction {
+import { useState, useEffect, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
+import { api } from '@/services/api';
+
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      NEXT_PUBLIC_WS_URL: string;
+    }
+  }
+}
+
+export interface PredictionMetrics {
   current_price: number;
   predicted_price: number;
   predicted_change_percent: number;
-  prediction_confidence: number;
+  confidence_interval: {
+    lower: number;
+    upper: number;
+  };
+  uncertainty: number;
+  prediction_std: number;
 }
 
-interface MarketSentiment {
+export interface MarketSentiment {
   sentiment_score: number;
   rsi: number;
   macd: number;
   volume_trend: number;
 }
 
-interface AnomalyData {
-  anomaly_dates: string[];
-  anomaly_count: number;
-  latest_anomaly: string | null;
+export interface ModelInfo {
+  symbol: string;
+  features: string[];
+  sequence_length: number;
+  training_date: string;
+  training_samples: number;
+  final_train_loss: number;
+  final_val_loss: number;
+  best_val_loss: number;
+  training_epochs: number;
 }
 
-interface ModelStatus {
-  has_model: boolean;
-  last_trained: string | null;
+interface UseAIAnalysisReturn {
+  predictions: Record<string, PredictionMetrics>;
+  sentiment: Record<string, MarketSentiment>;
+  modelInfo: Record<string, ModelInfo>;
+  loading: boolean;
+  error: Error | null;
+  getPrediction: (symbol: string) => Promise<void>;
+  getSentiment: (symbol: string) => Promise<void>;
+  getModelInfo: (symbol: string) => Promise<void>;
+  trainModel: (symbol: string, historicalData: any) => Promise<void>;
 }
 
-interface PortfolioAnalysis {
-  predictions: { [symbol: string]: PricePrediction };
-  sentiment: { [symbol: string]: MarketSentiment };
-  anomalies: { [symbol: string]: AnomalyData };
-  portfolio_risk: any;
-}
-
-export function useAIAnalysis() {
+export function useAIAnalysis(): UseAIAnalysisReturn {
   const { data: session } = useSession();
-  const { addNotification } = useNotifications();
-  const [isLoading, setIsLoading] = useState(false);
-  const [predictions, setPredictions] = useState<{ [symbol: string]: PricePrediction }>({});
-  const [sentiment, setSentiment] = useState<{ [symbol: string]: MarketSentiment }>({});
-  const [anomalies, setAnomalies] = useState<{ [symbol: string]: AnomalyData }>({});
-  const [modelStatus, setModelStatus] = useState<{ [symbol: string]: ModelStatus }>({});
+  const [predictions, setPredictions] = useState<Record<string, PredictionMetrics>>({});
+  const [sentiment, setSentiment] = useState<Record<string, MarketSentiment>>({});
+  const [modelInfo, setModelInfo] = useState<Record<string, ModelInfo>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  const getPricePrediction = useCallback(async (symbol: string, days: number = 60) => {
-    if (!session) return;
+  // Get prediction for a symbol
+  const getPrediction = useCallback(async (symbol: string) => {
+    if (!session?.user?.id) return;
 
-    setIsLoading(true);
     try {
-      const response = await fetch(`/api/ai/predict/${symbol}?days=${days}`);
-      if (!response.ok) throw new Error('Failed to get price prediction');
-
-      const data = await response.json();
-      setPredictions(prev => ({
+      setLoading(true);
+      const response = await api.get(`/ai/prediction/${symbol}`);
+      setPredictions((prev: Record<string, PredictionMetrics>) => ({
         ...prev,
-        [symbol]: data.data
+        [symbol]: response.data
       }));
-    } catch (error) {
-      console.error('Error getting price prediction:', error);
-      addNotification({
-        type: 'error',
-        title: 'Prediction Error',
-        message: 'Failed to get price prediction',
-        userId: 'system'
-      });
+      setError(null);
+    } catch (err) {
+      console.error('Error getting prediction:', err);
+      setError(err instanceof Error ? err : new Error('Failed to get prediction'));
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [session, addNotification]);
+  }, [session?.user?.id]);
 
-  const trainModel = useCallback(async (symbol: string, days: number = 252) => {
-    if (!session) return;
+  // Get market sentiment analysis
+  const getSentiment = useCallback(async (symbol: string) => {
+    if (!session?.user?.id) return;
 
-    setIsLoading(true);
     try {
-      const response = await fetch(`/api/ai/train/${symbol}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ days })
-      });
-
-      if (!response.ok) throw new Error('Failed to train model');
-
-      const data = await response.json();
-      addNotification({
-        type: 'success',
-        title: 'Model Training',
-        message: `Successfully trained model for ${symbol}`,
-        userId: 'system'
-      });
-
-      return data.data;
-    } catch (error) {
-      console.error('Error training model:', error);
-      addNotification({
-        type: 'error',
-        title: 'Training Error',
-        message: 'Failed to train model',
-        userId: 'system'
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [session, addNotification]);
-
-  const getMarketSentiment = useCallback(async (symbol: string, days: number = 14) => {
-    if (!session) return;
-
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/ai/sentiment/${symbol}?days=${days}`);
-      if (!response.ok) throw new Error('Failed to get market sentiment');
-
-      const data = await response.json();
-      setSentiment(prev => ({
+      setLoading(true);
+      const response = await api.get(`/ai/sentiment/${symbol}`);
+      setSentiment((prev: Record<string, MarketSentiment>) => ({
         ...prev,
-        [symbol]: data.data
+        [symbol]: response.data
       }));
-    } catch (error) {
-      console.error('Error getting market sentiment:', error);
-      addNotification({
-        type: 'error',
-        title: 'Sentiment Analysis Error',
-        message: 'Failed to get market sentiment',
-        userId: 'system'
-      });
+      setError(null);
+    } catch (err) {
+      console.error('Error getting sentiment:', err);
+      setError(err instanceof Error ? err : new Error('Failed to get sentiment'));
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [session, addNotification]);
+  }, [session?.user?.id]);
 
-  const detectAnomalies = useCallback(async (symbols: string[], days: number = 30) => {
-    if (!session) return;
+  // Get model information
+  const getModelInfo = useCallback(async (symbol: string) => {
+    if (!session?.user?.id) return;
 
-    setIsLoading(true);
     try {
-      const response = await fetch('/api/ai/anomalies/detect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbols, days })
-      });
-
-      if (!response.ok) throw new Error('Failed to detect anomalies');
-
-      const data = await response.json();
-      setAnomalies(data.data);
-    } catch (error) {
-      console.error('Error detecting anomalies:', error);
-      addNotification({
-        type: 'error',
-        title: 'Anomaly Detection Error',
-        message: 'Failed to detect anomalies',
-        userId: 'system'
-      });
+      setLoading(true);
+      const response = await api.get(`/ai/model-info/${symbol}`);
+      setModelInfo((prev: Record<string, ModelInfo>) => ({
+        ...prev,
+        [symbol]: response.data
+      }));
+      setError(null);
+    } catch (err) {
+      console.error('Error getting model info:', err);
+      setError(err instanceof Error ? err : new Error('Failed to get model info'));
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [session, addNotification]);
+  }, [session?.user?.id]);
 
-  const getPortfolioAnalysis = useCallback(async (days: number = 30) => {
-    if (!session) return;
+  // Train model for a symbol
+  const trainModel = useCallback(async (symbol: string, historicalData: any) => {
+    if (!session?.user?.id) return;
 
-    setIsLoading(true);
     try {
-      const response = await fetch(`/api/ai/portfolio/analysis?days=${days}`);
-      if (!response.ok) throw new Error('Failed to get portfolio analysis');
-
-      const data = await response.json();
-      const analysis: PortfolioAnalysis = data.data;
-
-      setPredictions(analysis.predictions);
-      setSentiment(analysis.sentiment);
-      setAnomalies(analysis.anomalies);
-
-      return analysis;
-    } catch (error) {
-      console.error('Error getting portfolio analysis:', error);
-      addNotification({
-        type: 'error',
-        title: 'Analysis Error',
-        message: 'Failed to get portfolio analysis',
-        userId: 'system'
+      setLoading(true);
+      const response = await api.post(`/ai/train/${symbol}`, {
+        historicalData
       });
+      setModelInfo((prev: Record<string, ModelInfo>) => ({
+        ...prev,
+        [symbol]: response.data
+      }));
+      setError(null);
+    } catch (err) {
+      console.error('Error training model:', err);
+      setError(err instanceof Error ? err : new Error('Failed to train model'));
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [session, addNotification]);
+  }, [session?.user?.id]);
 
-  const getModelStatus = useCallback(async () => {
-    if (!session) return;
+  // WebSocket connection for real-time updates
+  useEffect(() => {
+    if (!session?.user?.id) return;
 
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/ai/models/status');
-      if (!response.ok) throw new Error('Failed to get model status');
+    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ai`);
 
-      const data = await response.json();
-      setModelStatus(data.data);
-    } catch (error) {
-      console.error('Error getting model status:', error);
-      addNotification({
-        type: 'error',
-        title: 'Status Error',
-        message: 'Failed to get model status',
-        userId: 'system'
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [session, addNotification]);
-
-  // Format prediction for display
-  const formatPrediction = useCallback((prediction: PricePrediction) => {
-    return {
-      currentPrice: `$${prediction.current_price.toLocaleString()}`,
-      predictedPrice: `$${prediction.predicted_price.toLocaleString()}`,
-      changePercent: `${prediction.predicted_change_percent > 0 ? '+' : ''}${prediction.predicted_change_percent.toFixed(2)}%`,
-      confidence: `${(prediction.prediction_confidence * 100).toFixed(1)}%`
+    ws.onopen = () => {
+      console.log('Connected to AI updates');
     };
-  }, []);
+
+    ws.onmessage = (event) => {
+      try {
+        const update = JSON.parse(event.data);
+        
+        switch (update.type) {
+          case 'prediction':
+            setPredictions((prev: Record<string, PredictionMetrics>) => ({
+              ...prev,
+              [update.symbol]: update.data
+            }));
+            break;
+            
+          case 'sentiment':
+            setSentiment((prev: Record<string, MarketSentiment>) => ({
+              ...prev,
+              [update.symbol]: update.data
+            }));
+            break;
+            
+          case 'model_info':
+            setModelInfo((prev: Record<string, ModelInfo>) => ({
+              ...prev,
+              [update.symbol]: update.data
+            }));
+            break;
+        }
+      } catch (err) {
+        console.error('Error processing AI update:', err);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('AI WebSocket error:', error);
+      setError(new Error('WebSocket connection error'));
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [session?.user?.id]);
 
   return {
-    isLoading,
     predictions,
     sentiment,
-    anomalies,
-    modelStatus,
-    getPricePrediction,
-    trainModel,
-    getMarketSentiment,
-    detectAnomalies,
-    getPortfolioAnalysis,
-    getModelStatus,
-    formatPrediction
+    modelInfo,
+    loading,
+    error,
+    getPrediction,
+    getSentiment,
+    getModelInfo,
+    trainModel
   };
 }

@@ -1,23 +1,26 @@
 import 'next-auth';
-
-export type UserRole = 'USER' | 'ADMIN';
+import { JWT } from 'next-auth/jwt';
 
 declare module 'next-auth' {
-  interface User {
-    id: string;
-    role: UserRole;
-    isAdmin: boolean;
-    email: string;
-    emailVerified: Date | null;
-    twoFactorEnabled: boolean;
-    name?: string | null;
+  interface Session {
+    user: {
+      id: string;
+      email: string;
+      name: string;
+    };
   }
 
-  interface Session {
-    user: User & {
-      id: string;
-      role: UserRole;
-      isAdmin: boolean;
-    };
+  interface User {
+    id: string;
+    email: string;
+    name: string;
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    id: string;
+    email: string;
+    name: string;
   }
 }
