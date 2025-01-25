@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="600" viewBox="0 0 400 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="suit" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E40AF"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4"/>
+    </filter>
+  </defs>
+
+  <!-- Tech Grid Background -->
+  <path d="M0 0 L400 0 L400 600 L0 600 Z" 
+        stroke="#2563EB" 
+        stroke-width="0.5" 
+        stroke-opacity="0.1" 
+        fill="none" 
+        stroke-dasharray="10 10"/>
+
+  <!-- Agent Figure -->
+  <g transform="translate(100, 50)">
+    <!-- Suit -->
+    <path d="M100 50
+             C150 30 200 50 200 100
+             L150 400 L100 350 L50 400
+             L0 100 C0 50 50 30 100 50Z"
+          fill="url(#suit)"
+          stroke="#2563EB"
+          stroke-width="2"/>
+
+    <!-- Head -->
+    <path d="M50 30
+             C50 0 150 0 150 30
+             C150 60 50 60 50 30Z"
+          fill="#F8FAFC"
+          stroke="#2563EB"
+          stroke-width="2"/>
+
+    <!-- Tech Glasses -->
+    <g filter="url(#glow)">
+      <path d="M70 25 L90 25 M110 25 L130 25"
+            stroke="#60A5FA"
+            stroke-width="2"/>
+    </g>
+
+    <!-- Tie -->
+    <path d="M95 50 L100 80 L105 50 L100 45Z"
+          fill="#2563EB"/>
+  </g>
+
+  <!-- Holographic UI Elements -->
+  <g transform="translate(250, 150)">
+    <!-- Data Circle -->
+    <circle cx="0" cy="0" r="40"
+            stroke="#60A5FA"
+            stroke-width="1"
+            fill="none"/>
+    
+    <!-- Cross Lines -->
+    <path d="M-50 0 L50 0 M0 -50 L0 50"
+          stroke="#60A5FA"
+          stroke-width="1"
+          stroke-dasharray="2 4"/>
+
+    <!-- Data Points -->
+    <circle cx="-30" cy="-30" r="3" fill="#60A5FA"/>
+    <circle cx="30" cy="30" r="3" fill="#60A5FA"/>
+    <circle cx="-30" cy="30" r="3" fill="#60A5FA"/>
+    <circle cx="30" cy="-30" r="3" fill="#60A5FA"/>
+  </g>
+
+  <!-- Tech Lines -->
+  <g stroke="#2563EB" stroke-width="1" stroke-opacity="0.3">
+    <path d="M50 500 L350 500" stroke-dasharray="5 5"/>
+    <path d="M50 520 L350 520" stroke-dasharray="5 5"/>
+    <path d="M50 540 L350 540" stroke-dasharray="5 5"/>
+  </g>
+
+  <!-- Floating Data -->
+  <g fill="#60A5FA" font-family="monospace" font-size="12">
+    <text x="50" y="480">ANALYZING...</text>
+    <text x="250" y="480">SECURITY: 007</text>
+    <text x="50" y="560">STATUS: ACTIVE</text>
+    <text x="250" y="560">RISK: LOW</text>
+  </g>
+</svg>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="1200" viewBox="0 0 800 1200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Head and shoulders -->
+  <path d="M400 150
+           C480 150 540 210 540 290
+           C540 370 480 430 400 430
+           C320 430 260 370 260 290
+           C260 210 320 150 400 150Z" 
+        fill="currentColor" opacity="0.15"/>
+  
+  <!-- Suit jacket -->
+  <path d="M280 430
+           L240 900
+           L360 860
+           L400 900
+           L440 860
+           L560 900
+           L520 430
+           L460 460
+           L400 430
+           L340 460Z" 
+        fill="currentColor" opacity="0.15"/>
+  
+  <!-- Arms -->
+  <path d="M280 500
+           L160 700
+           L200 740
+           L320 540" 
+        fill="currentColor" opacity="0.15"/>
+  <path d="M520 500
+           L640 700
+           L600 740
+           L480 540" 
+        fill="currentColor" opacity="0.15"/>
+  
+  <!-- Tie -->
+  <path d="M380 430
+           L400 480
+           L420 430
+           L400 410Z" 
+        fill="currentColor" opacity="0.2"/>
+  
+  <!-- Sunglasses -->
+  <path d="M340 260
+           L360 260
+           A20 20 0 0 0 340 260Z" 
+        fill="currentColor" opacity="0.2"/>
+  <path d="M440 260
+           L460 260
+           A20 20 0 0 0 440 260Z" 
+        fill="currentColor" opacity="0.2"/>
+  
+  <!-- Gun silhouette -->
+  <path d="M640 700
+           L680 720
+           L670 730
+           L650 725
+           L640 700Z" 
+        fill="currentColor" opacity="0.15"/>
+</svg>

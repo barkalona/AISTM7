@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pie-gradient-1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#59CBE8"/>
+      <stop offset="100%" stop-color="#2D88FF"/>
+    </linearGradient>
+    <linearGradient id="pie-gradient-2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#59CBE8"/>
+      <stop offset="100%" stop-color="#2D88FF"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background Grid -->
+  <g opacity="0.1">
+    <circle cx="96" cy="96" r="80" stroke="#59CBE8" fill="none"/>
+    <circle cx="96" cy="96" r="60" stroke="#59CBE8" fill="none"/>
+    <circle cx="96" cy="96" r="40" stroke="#59CBE8" fill="none"/>
+    <line x1="16" y1="96" x2="176" y2="96" stroke="#59CBE8"/>
+    <line x1="96" y1="16" x2="96" y2="176" stroke="#59CBE8"/>
+  </g>
+
+  <!-- Animated Pie Charts -->
+  <g transform="translate(96, 96)">
+    <!-- Outer Ring -->
+    <circle r="70" fill="none" stroke="url(#pie-gradient-1)" stroke-width="4" stroke-dasharray="440">
+      <animate attributeName="stroke-dashoffset"
+               values="440;220;440"
+               dur="3s"
+               repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Middle Ring -->
+    <circle r="55" fill="none" stroke="url(#pie-gradient-2)" stroke-width="4" stroke-dasharray="346">
+      <animate attributeName="stroke-dashoffset"
+               values="346;173;346"
+               dur="4s"
+               repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Inner Ring -->
+    <circle r="40" fill="none" stroke="url(#pie-gradient-1)" stroke-width="4" stroke-dasharray="251">
+      <animate attributeName="stroke-dashoffset"
+               values="251;125;251"
+               dur="5s"
+               repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- Data Points -->
+  <g filter="url(#glow)">
+    <circle cx="96" cy="26" r="3" fill="#59CBE8">
+      <animate attributeName="r"
+               values="3;4;3"
+               dur="2s"
+               repeatCount="indefinite"/>
+    </circle>
+    <circle cx="166" cy="96" r="3" fill="#59CBE8">
+      <animate attributeName="r"
+               values="3;4;3"
+               dur="2s"
+               repeatCount="indefinite"
+               begin="0.5s"/>
+    </circle>
+    <circle cx="96" cy="166" r="3" fill="#59CBE8">
+      <animate attributeName="r"
+               values="3;4;3"
+               dur="2s"
+               repeatCount="indefinite"
+               begin="1s"/>
+    </circle>
+    <circle cx="26" cy="96" r="3" fill="#59CBE8">
+      <animate attributeName="r"
+               values="3;4;3"
+               dur="2s"
+               repeatCount="indefinite"
+               begin="1.5s"/>
+    </circle>
+  </g>
+
+  <!-- Stats -->
+  <g font-family="monospace" font-size="10" fill="#59CBE8">
+    <text x="96" y="86" text-anchor="middle" opacity="0.6">Portfolio Value</text>
+    <text x="96" y="101" text-anchor="middle" opacity="0.8">$1,234,567</text>
+    <text x="96" y="116" text-anchor="middle" opacity="0.6">+12.5% 24h</text>
+  </g>
+
+  <!-- Connecting Lines -->
+  <g stroke="#59CBE8" stroke-width="1" opacity="0.3">
+    <line x1="96" y1="36" x2="96" y2="66">
+      <animate attributeName="y2"
+               values="66;56;66"
+               dur="2s"
+               repeatCount="indefinite"/>
+    </line>
+    <line x1="156" y1="96" x2="126" y2="96">
+      <animate attributeName="x2"
+               values="126;136;126"
+               dur="2s"
+               repeatCount="indefinite"/>
+    </line>
+  </g>
+</svg>
