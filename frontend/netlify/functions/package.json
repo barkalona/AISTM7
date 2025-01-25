@@ -2,6 +2,10 @@
   "name": "aistm7-netlify-functions",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20.18.0",
+    "npm": ">=10.0.0"
+  },
   "dependencies": {
     "@netlify/functions": "^2.0.0",
     "@types/cors": "^2.8.17",
