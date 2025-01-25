@@ -1,14 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  swcMinify: true,
+  output: 'standalone',
+  images: {
+    domains: ['localhost', 'aistm7.netlify.app'],
+    unoptimized: true,
+  },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api',
     NEXT_PUBLIC_SOLANA_NETWORK: process.env.NEXT_PUBLIC_SOLANA_NETWORK || 'devnet',
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
     NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3000'
-  },
-  images: {
-    domains: ['localhost', 'aistm7.netlify.app'],
   },
   webpack: (config) => {
     config.resolve.fallback = { 
@@ -27,7 +30,10 @@ const nextConfig = {
       'process/browser': require.resolve('process/browser'),
     };
     return config;
+  },
+  // Enable edge runtime for better performance
+  experimental: {
+    runtime: 'edge',
+    serverComponents: true,
   }
 }
-
-module.exports = nextConfig
