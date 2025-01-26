@@ -1,3 +1,30 @@
+#!/bin/bash
+
+# Exit on error
+set -e
+
+echo "🔄 Creating stage 4 branch from stage 3..."
+
+# Commit any existing changes first
+echo "💾 Committing current changes..."
+git add .
+git commit -m "chore: prepare for stage 4 branch"
+
+# Make sure we're on stage 3 and it's up to date
+echo "📥 Updating stage 3 branch..."
+git checkout stage3
+git pull origin stage3
+
+# Create and switch to stage 4 branch
+echo "🌿 Creating stage 4 branch..."
+git checkout -b stage4
+
+# Push the new branch to remote
+echo "⬆️ Pushing stage 4 branch to remote..."
+git push -u origin stage4
+
+echo "📝 Creating stage 4 changelog..."
+cat > STAGE4-CHANGELOG.md << EOL
 # Stage 4 Changelog
 
 ## Focus Areas
@@ -12,7 +39,7 @@
    - AI prediction integration (Pending)
 
 ## Changes
-2025-01-26
+$(date +"%Y-%m-%d")
 - Created stage 4 branch from stage 3
 - Implemented WebSocket Manager with features:
   * Client connection management
@@ -63,17 +90,25 @@
    - API documentation
    - WebSocket protocol documentation
    - Integration guides
+EOL
 
-## Known Issues
-None currently - initial implementation phase
+# Add and commit the changelog
+git add STAGE4-CHANGELOG.md
+git commit -m "chore: initialize stage 4 branch with changelog"
+git push
 
-## Dependencies Added
-- ws (WebSocket server)
-- winston (Logging)
-- chai (Testing)
+echo "
+✅ Stage 4 branch created successfully!
 
-## Testing
-To run the real-time integration tests:
-```bash
-cd backend
-npm test tests/services/realtime.test.js
+Current branch: $(git branch --show-current)
+Remote: $(git remote get-url origin)
+
+Next steps:
+1. Start implementing WebSocket manager
+2. Integrate market data service
+3. Add real-time frontend hooks
+
+To verify:
+git branch    # Should show stage4 as current branch
+git status    # Should be clean
+"
