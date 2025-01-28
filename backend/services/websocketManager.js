@@ -1,124 +1,254 @@
 const WebSocket = require('ws');
 const EventEmitter = require('events');
+const { validateMessage } = require('../utils/validation');
+const logger = require('../utils/logger');
 
 class WebSocketManager extends EventEmitter {
-  constructor() {
-    super();
-    this.connections = new Map(); // userId -> WebSocket
-    this.messageQueue = new Map(); // userId -> Queue
-    this.reconnectAttempts = new Map(); // userId -> attempts
-    this.MAX_RECONNECT_ATTEMPTS = 5;
-    this.RECONNECT_INTERVAL = 1000; // Start with 1 second
-  }
-
-  addConnection(userId, ws) {
-    this.connections.set(userId, ws);
-    this.messageQueue.set(userId, []);
-    this.reconnectAttempts.set(userId, 0);
-    
-    ws.on('close', () => this.handleDisconnect(userId));
-    ws.on('error', (error) => this.handleError(userId, error));
-    
-    // Clear any queued messages
-    this.flushMessageQueue(userId);
-  }
-
-  removeConnection(userId) {
-    const ws = this.connections.get(userId);
-    if (ws) {
-      ws.close();
-      this.connections.delete(userId);
-      this.messageQueue.delete(userId);
-      this.reconnectAttempts.delete(userId);
-    }
-  }
-
-  sendMessage(userId, message) {
-    const ws = this.connections.get(userId);
-    const queue = this.messageQueue.get(userId) || [];
-
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      // Queue message if connection is not ready
-      queue.push(message);
-      this.messageQueue.set(userId, queue);
-      return;
+    constructor() {
+        super();
+        this.clients = new Map(); // Map of client ID to WebSocket connection
+        this.subscriptions = new Map(); // Map of topics to set of client IDs
+        this.heartbeatInterval = 30000; // 30 seconds
+        this.reconnectAttempts = new Map(); // Track reconnection attempts
+        this.maxReconnectAttempts = 5;
     }
 
-    try {
-      ws.send(JSON.stringify(message));
-    } catch (error) {
-      console.error('Error sending message:', error);
-      queue.push(message);
-      this.messageQueue.set(userId, queue);
-    }
-  }
+    initialize(server) {
+        this.wss = new WebSocket.Server({ server });
+        logger.info('WebSocket server initialized');
 
-  broadcastMessage(message, filter = () => true) {
-    for (const [userId, ws] of this.connections) {
-      if (filter(userId) && ws.readyState === WebSocket.OPEN) {
-        this.sendMessage(userId, message);
-      }
-    }
-  }
-
-  flushMessageQueue(userId) {
-    const ws = this.connections.get(userId);
-    const queue = this.messageQueue.get(userId) || [];
-
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-    while (queue.length > 0) {
-      const message = queue.shift();
-      try {
-        ws.send(JSON.stringify(message));
-      } catch (error) {
-        console.error('Error flushing message queue:', error);
-        queue.unshift(message); // Put message back at front of queue
-        break;
-      }
+        this.wss.on('connection', this.handleConnection.bind(this));
+        this.startHeartbeat();
     }
 
-    this.messageQueue.set(userId, queue);
-  }
+    handleConnection(ws, req) {
+        const clientId = this.generateClientId();
+        this.clients.set(clientId, ws);
 
-  handleDisconnect(userId) {
-    const attempts = this.reconnectAttempts.get(userId) || 0;
-    
-    if (attempts < this.MAX_RECONNECT_ATTEMPTS) {
-      const backoffTime = Math.min(1000 * Math.pow(2, attempts), 30000);
-      
-      setTimeout(() => {
-        this.emit('reconnect', userId);
-        this.reconnectAttempts.set(userId, attempts + 1);
-      }, backoffTime);
-    } else {
-      this.emit('max_reconnect_attempts', userId);
-      this.removeConnection(userId);
+        logger.info(`Client connected: ${clientId}`);
+
+        // Set up client handlers
+        ws.on('message', (message) => this.handleMessage(clientId, message));
+        ws.on('close', () => this.handleDisconnection(clientId));
+        ws.on('error', (error) => this.handleError(clientId, error));
+
+        // Send welcome message
+        this.sendToClient(clientId, {
+            type: 'connection',
+            status: 'connected',
+            clientId
+        });
+
+        // Initialize client state
+        ws.isAlive = true;
+        ws.on('pong', () => {
+            ws.isAlive = true;
+        });
     }
-  }
 
-  handleError(userId, error) {
-    console.error(`WebSocket error for user ${userId}:`, error);
-    this.emit('error', { userId, error });
-  }
+    handleMessage(clientId, message) {
+        try {
+            const parsedMessage = JSON.parse(message);
+            
+            // Validate message structure
+            if (!validateMessage(parsedMessage)) {
+                throw new Error('Invalid message format');
+            }
 
-  getConnectionState(userId) {
-    const ws = this.connections.get(userId);
-    if (!ws) return 'disconnected';
-    
-    switch (ws.readyState) {
-      case WebSocket.CONNECTING:
-        return 'connecting';
-      case WebSocket.OPEN:
-        return 'connected';
-      case WebSocket.CLOSING:
-        return 'closing';
-      case WebSocket.CLOSED:
-        return 'disconnected';
-      default:
-        return 'unknown';
+            switch (parsedMessage.type) {
+                case 'subscribe':
+                    this.handleSubscribe(clientId, parsedMessage.topics);
+                    break;
+                case 'unsubscribe':
+                    this.handleUnsubscribe(clientId, parsedMessage.topics);
+                    break;
+                case 'marketData':
+                    this.handleMarketDataRequest(clientId, parsedMessage.data);
+                    break;
+                case 'portfolio':
+                    this.handlePortfolioRequest(clientId, parsedMessage.data);
+                    break;
+                case 'ping':
+                    this.sendToClient(clientId, { type: 'pong' });
+                    break;
+                default:
+                    logger.warn(`Unknown message type: ${parsedMessage.type}`);
+            }
+        } catch (error) {
+            logger.error('Error handling message:', error);
+            this.sendToClient(clientId, {
+                type: 'error',
+                message: 'Invalid message format'
+            });
+        }
     }
-  }
+
+    handleSubscribe(clientId, topics) {
+        if (!Array.isArray(topics)) {
+            topics = [topics];
+        }
+
+        topics.forEach(topic => {
+            if (!this.subscriptions.has(topic)) {
+                this.subscriptions.set(topic, new Set());
+            }
+            this.subscriptions.get(topic).add(clientId);
+        });
+
+        this.sendToClient(clientId, {
+            type: 'subscribed',
+            topics
+        });
+
+        logger.info(`Client ${clientId} subscribed to topics: ${topics.join(', ')}`);
+    }
+
+    handleUnsubscribe(clientId, topics) {
+        if (!Array.isArray(topics)) {
+            topics = [topics];
+        }
+
+        topics.forEach(topic => {
+            const subscribers = this.subscriptions.get(topic);
+            if (subscribers) {
+                subscribers.delete(clientId);
+                if (subscribers.size === 0) {
+                    this.subscriptions.delete(topic);
+                }
+            }
+        });
+
+        this.sendToClient(clientId, {
+            type: 'unsubscribed',
+            topics
+        });
+
+        logger.info(`Client ${clientId} unsubscribed from topics: ${topics.join(', ')}`);
+    }
+
+    handleDisconnection(clientId) {
+        // Clean up subscriptions
+        this.subscriptions.forEach((subscribers, topic) => {
+            subscribers.delete(clientId);
+            if (subscribers.size === 0) {
+                this.subscriptions.delete(topic);
+            }
+        });
+
+        // Remove client
+        this.clients.delete(clientId);
+        logger.info(`Client disconnected: ${clientId}`);
+    }
+
+    handleError(clientId, error) {
+        logger.error(`WebSocket error for client ${clientId}:`, error);
+        
+        // Attempt reconnection
+        const attempts = this.reconnectAttempts.get(clientId) || 0;
+        if (attempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts.set(clientId, attempts + 1);
+            setTimeout(() => {
+                this.attemptReconnect(clientId);
+            }, Math.min(1000 * Math.pow(2, attempts), 30000)); // Exponential backoff
+        }
+    }
+
+    async handleMarketDataRequest(clientId, data) {
+        try {
+            // Emit event for market data service to handle
+            this.emit('marketDataRequest', {
+                clientId,
+                ...data
+            });
+        } catch (error) {
+            logger.error('Error handling market data request:', error);
+            this.sendToClient(clientId, {
+                type: 'error',
+                message: 'Failed to process market data request'
+            });
+        }
+    }
+
+    async handlePortfolioRequest(clientId, data) {
+        try {
+            // Emit event for portfolio service to handle
+            this.emit('portfolioRequest', {
+                clientId,
+                ...data
+            });
+        } catch (error) {
+            logger.error('Error handling portfolio request:', error);
+            this.sendToClient(clientId, {
+                type: 'error',
+                message: 'Failed to process portfolio request'
+            });
+        }
+    }
+
+    broadcast(topic, data) {
+        const subscribers = this.subscriptions.get(topic);
+        if (subscribers) {
+            const message = JSON.stringify({
+                type: 'update',
+                topic,
+                data,
+                timestamp: new Date().toISOString()
+            });
+
+            subscribers.forEach(clientId => {
+                const client = this.clients.get(clientId);
+                if (client && client.readyState === WebSocket.OPEN) {
+                    client.send(message);
+                }
+            });
+        }
+    }
+
+    sendToClient(clientId, data) {
+        const client = this.clients.get(clientId);
+        if (client && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+                ...data,
+                timestamp: new Date().toISOString()
+            }));
+        }
+    }
+
+    startHeartbeat() {
+        setInterval(() => {
+            this.clients.forEach((ws, clientId) => {
+                if (ws.isAlive === false) {
+                    logger.warn(`Client ${clientId} failed heartbeat check`);
+                    return ws.terminate();
+                }
+                
+                ws.isAlive = false;
+                ws.ping();
+            });
+        }, this.heartbeatInterval);
+    }
+
+    generateClientId() {
+        return `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    getConnectedClients() {
+        return this.clients.size;
+    }
+
+    getSubscriptionCount(topic) {
+        return this.subscriptions.get(topic)?.size || 0;
+    }
+
+    shutdown() {
+        if (this.wss) {
+            this.wss.close(() => {
+                logger.info('WebSocket server shut down');
+            });
+        }
+    }
 }
 
-module.exports = new WebSocketManager();
+// Export singleton instance
+const websocketManager = new WebSocketManager();
+module.exports = websocketManager;
